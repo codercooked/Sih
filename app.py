@@ -65,10 +65,12 @@ st.markdown("""
     /* IBVAP operator-console theme */
     .stApp {
         background-color: #0b1020;
-        background-image: 
-            linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
-        background-size: 36px 36px;
+        background-image:
+            linear-gradient(to right, rgba(148, 163, 184, 0.055) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(148, 163, 184, 0.055) 1px, transparent 1px),
+            radial-gradient(circle at 50% 60%, rgba(236, 72, 153, 0.10) 0%, rgba(168, 85, 247, 0.045) 34%, transparent 68%);
+        background-size: 40px 40px, 40px 40px, 100% 100%;
+        background-attachment: fixed;
     }
     [data-testid="stSidebar"] > div:first-child { background: #111827; border-right: 1px solid #263247; }
     [data-testid="stSidebar"] { min-width: 230px; max-width: 230px; }
@@ -198,8 +200,8 @@ def main():
     st.markdown(
         '<div class="ibvap-brand">'
         '<span class="brand-name">🛡️ IBVAP</span>'
-        '<span class="brand-section">PERIMETER COMMAND</span>'
-        '<span class="brand-subtitle">LIVE OPERATIONS CONSOLE</span>'
+        '<span class="brand-section">Perimeter operations</span>'
+        '<span class="brand-subtitle">Border video analytics</span>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -247,27 +249,27 @@ def main():
         st.divider()
 
         # Feature toggles
-        st.markdown("### 🔧 Features")
+        st.markdown("### Detection & tracking")
         face_enabled = st.checkbox("Face Detection", value=config.get("face_detection_enabled", True))
         pose_enabled = st.checkbox("Pose Estimation", value=config.get("pose_estimation_enabled", True))
         anpr_enabled = st.checkbox("ANPR (Plate Reading)", value=config.get("anpr_enabled", True))
-        heatmap_enabled = st.checkbox("Live Spatial Heatmap", value=True)
+        heatmap_enabled = st.checkbox("Human movement heatmap", value=True)
         baggage_enabled = st.checkbox("Abandoned Baggage Detection", value=True)
-        trajectory_enabled = st.checkbox("📈 Trajectory Prediction", value=True)
-        weapon_detection_enabled = st.checkbox("🎯 Weapon Detection", value=True)
-        predictive_breach_enabled = st.checkbox("⚡ Predictive Breach Alert", value=True)
-        narrative_enabled = st.checkbox("🤖 AI Threat Narratives", value=True)
+        trajectory_enabled = st.checkbox("Trajectory prediction", value=True)
+        weapon_detection_enabled = st.checkbox("Weapon detection", value=True)
+        predictive_breach_enabled = st.checkbox("Predictive breach alert", value=True)
+        narrative_enabled = st.checkbox("Threat narrative", value=True)
 
         # Hardware Integration (Mock for SIH)
-        st.markdown("### 📡 External Integrations")
-        sms_alerts_enabled = st.checkbox("📱 Enable SMS Alerts", value=True)
-        siren_enabled = st.checkbox("🚨 Trigger Local Siren", value=True)
-        audio_alerts_enabled = st.checkbox("🔊 Audio Alerts", value=True)
+        st.markdown("### Integrations")
+        sms_alerts_enabled = st.checkbox("SMS alerts", value=True)
+        siren_enabled = st.checkbox("Local siren", value=True)
+        audio_alerts_enabled = st.checkbox("Audio alerts", value=True)
 
         st.divider()
 
         # AI API Configuration
-        st.markdown("### 🧠 AI Strategic Intelligence")
+        st.markdown("### Intelligence settings")
         gemini_api_key = st.text_input(
             "Gemini API Key",
             value=os.environ.get("GEMINI_API_KEY", ""),
@@ -283,7 +285,7 @@ def main():
         st.divider()
 
         # Zone configuration
-        st.markdown("### 📐 Zone Config")
+        st.markdown("### Zone configuration")
         zone_polygon_str = st.text_area(
             "Zone Polygon (JSON)",
             value=json.dumps(config.get("zone_polygon", [[100, 100], [500, 100], [500, 400], [100, 400]])),
@@ -293,7 +295,7 @@ def main():
         st.divider()
 
         # Actions
-        st.markdown("### 📊 Actions")
+        st.markdown("### Actions")
         if st.button("🗑️ Clear Event Log"):
             event_store = init_event_store(
                 resolve_project_path(config.get("database_path", "./ibvap_events.db")),
@@ -331,9 +333,9 @@ def main():
 
         # Limitations disclaimer
         st.markdown(
-            '<div style="padding: 8px; background: #1a1a2e; border-radius: 8px; '
+            '<div style="padding: 8px; background: #111827; border: 1px solid #263247; border-radius: 8px; '
             'font-size: 11px; color: #888;">'
-            '🚀 <strong>IBVAP Advanced Features:</strong><br>'
+            '<strong style="color:#cbd5e1;">Included capabilities</strong><br>'
             '• Deep Learning Neural Network (4-layer MLP, 100K records)<br>'
             '• Trajectory Prediction & Direction Analysis<br>'
             '• AI-Powered Threat Narratives<br>'
@@ -401,10 +403,10 @@ def main():
 
     # ─── Main Layout ────────────────────────────────────────────────────
     tab_live, tab_analytics, tab_map, tab_ai = st.tabs([
-        "● Live", 
-        "▦ Analytics", 
-        "⌖ Map", 
-        "✦ Intelligence"
+        "Live",
+        "Analytics",
+        "Map",
+        "Intelligence"
     ])
 
     with tab_analytics:
@@ -415,7 +417,7 @@ def main():
         render_geospatial_map(recent_events)
 
     with tab_ai:
-        st.markdown("## 🧠 VIGIL-AI Strategic Intelligence Analysis")
+        st.markdown("## Strategic intelligence")
         st.caption("Multi-sensor telemetry synthesis & LLM tactical reasoning (Powered by Google Gemini)")
 
         all_events = event_store.get_recent_events(limit=50)
@@ -525,6 +527,9 @@ def main():
         if start_btn:
             st.session_state.is_running = not st.session_state.is_running
             if st.session_state.is_running:
+                # Do not carry heat from a previous run into a new camera
+                # session, especially when switching from people to vehicles.
+                st.session_state.pop("heatmap_accumulator", None)
                 st.session_state.tracker = CentroidTracker(
                     max_disappeared=config.get("tracker_max_disappeared", 30),
                     max_distance=config.get("tracker_max_distance", 80),
@@ -534,6 +539,7 @@ def main():
         if stop_btn:
             st.session_state.is_running = False
             st.session_state.tracker = None
+            st.session_state.pop("heatmap_accumulator", None)
             st.session_state.frame_count = 0
             st.session_state.max_threat_score = 0
             st.rerun()
@@ -584,9 +590,22 @@ def main():
             
             st.session_state.frame_count += 1
             
-            # Skip every 2nd frame for heavy ML if needed, but for 640x360 we should be very fast.
-            # To guarantee 24-30 fps in a Streamlit app, we render to Streamlit less frequently.
+            # Render the lightweight preview more often than the analytics
+            # pipeline so the operator feed stays responsive.
             render_this_frame = (st.session_state.frame_count % 2 == 0)
+            inference_this_frame = st.session_state.frame_count % 4 == 0
+
+            # Fast display path: between analytics frames, do not run the
+            # tracker, zone logic, pose model, heatmap, or event pipeline.
+            # This is the key latency fix for CPU-only local playback.
+            if not inference_this_frame:
+                if render_this_frame:
+                    video_placeholder.image(
+                        cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),
+                        channels="RGB",
+                        use_container_width=True,
+                    )
+                continue
 
             # ── Step 1: Night Enhancement ──
             frame, is_night_mode = night_enhancer.enhance(frame)
@@ -595,7 +614,6 @@ def main():
             # YOLO inference is the most expensive operation in the local
             # CPU pipeline. Reuse the latest detections on alternate frames
             # so the preview remains fluid while tracking continues.
-            inference_this_frame = st.session_state.frame_count % 4 == 0
             if inference_this_frame or not last_detections:
                 last_detections = detector.detect(frame)
             detections = last_detections
@@ -656,10 +674,9 @@ def main():
                     if tag not in entity.behavior_tags:
                         entity.behavior_tags.append(tag)
 
-                # Spatial heatmap covers every tracked object. Previously it
-                # only accepted people, which made it appear broken on the
-                # vehicle-focused sample feed.
-                if inference_this_frame and heatmap_enabled and 'heatmap_accumulator' in st.session_state:
+                # Heatmap only human movement; vehicle tracks stay available
+                # for detection and alerts without adding overlay workload.
+                if inference_this_frame and heatmap_enabled and 'heatmap_accumulator' in st.session_state and is_person:
                     cx, cy = entity.centroid
                     st.session_state.heatmap_accumulator.add_point(cx, cy)
 
@@ -853,7 +870,8 @@ def main():
             # ── Step 10: Draw Overlays ──
             display_frame = frame.copy()
 
-            if heatmap_enabled and 'heatmap_accumulator' in st.session_state:
+            has_current_person = bool(person_detections)
+            if heatmap_enabled and has_current_person and 'heatmap_accumulator' in st.session_state:
                 display_frame = st.session_state.heatmap_accumulator.blend(display_frame)
 
             # Draw zone

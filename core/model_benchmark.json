@@ -1,0 +1,88 @@
+{
+  "ensemble_r2": 0.9913,
+  "ensemble_mae": 2.323,
+  "ensemble_rmse": 3.093,
+  "hgb_r2": 0.98949,
+  "hgb_mae": 2.622,
+  "rf_r2": 0.98905,
+  "rf_mae": 2.421,
+  "mlp_r2": 0.9909,
+  "mlp_mae": 2.369,
+  "training_samples": 63750,
+  "test_samples": 11250,
+  "feature_importances": [
+    [
+      "distance_to_boundary",
+      31.81
+    ],
+    [
+      "loitering_duration",
+      28.97
+    ],
+    [
+      "posture",
+      8.7
+    ],
+    [
+      "is_erratic",
+      5.66
+    ],
+    [
+      "is_moving_toward_zone",
+      4.67
+    ],
+    [
+      "is_in_zone",
+      4.18
+    ],
+    [
+      "speed_category",
+      3.87
+    ],
+    [
+      "entity_type",
+      2.32
+    ],
+    [
+      "is_unauthorized_plate",
+      2.09
+    ],
+    [
+      "acceleration_magnitude",
+      1.79
+    ],
+    [
+      "has_weapon",
+      1.56
+    ],
+    [
+      "has_readable_plate",
+      1.09
+    ],
+    [
+      "hour_of_day",
+      1.07
+    ],
+    [
+      "direction_toward_zone",
+      1.01
+    ],
+    [
+      "crowd_density_gradient",
+      0.62
+    ],
+    [
+      "persons_in_zone",
+      0.47
+    ],
+    [
+      "time_since_last",
+      0.08
+    ],
+    [
+      "is_night_mode",
+      0.05
+    ]
+  ],
+  "trained_at": "2026-09-11 21:28:37 IST"
+}

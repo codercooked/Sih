@@ -1,0 +1,10 @@
+ultralytics>=8.0
+opencv-python>=4.8
+streamlit>=1.30
+mediapipe>=0.10
+easyocr
+scikit-learn>=1.7
+joblib
+numpy
+pandas
+Pillow

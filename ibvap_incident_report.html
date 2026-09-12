@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IBVAP Incident Report — 11 September 2026, 18:56 IST</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            padding: 40px;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 30px 40px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #69F0AE;
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        .header .subtitle {
+            color: #8b949e;
+            font-size: 14px;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .metric-card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+        .metric-card .value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #69F0AE;
+        }
+        .metric-card.critical .value { color: #F44336; }
+        .metric-card.high .value { color: #FF9800; }
+        .metric-card .label {
+            font-size: 12px;
+            color: #8b949e;
+            text-transform: uppercase;
+            margin-top: 5px;
+        }
+        .section-title {
+            font-size: 20px;
+            color: #69F0AE;
+            margin: 30px 0 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #30363d;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th {
+            background: #161b22;
+            color: #69F0AE;
+            padding: 12px 15px;
+            text-align: left;
+            font-size: 12px;
+            text-transform: uppercase;
+            border-bottom: 2px solid #30363d;
+        }
+        td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #21262d;
+            font-size: 13px;
+        }
+        tr:hover { background: #161b22; }
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-critical { background: #F44336; color: white; }
+        .badge-high { background: #FF9800; color: white; }
+        .badge-medium { background: #FFC107; color: #000; }
+        .badge-low { background: #4CAF50; color: white; }
+        .footer {
+            margin-top: 40px;
+            padding: 20px;
+            text-align: center;
+            color: #484f58;
+            font-size: 11px;
+            border-top: 1px solid #21262d;
+        }
+        .confidential {
+            color: #F44336;
+            font-weight: 700;
+            font-size: 13px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        @media print {
+            body { background: white; color: #333; padding: 20px; }
+            .header { background: #f0f0f0; }
+            .metric-card { background: #f5f5f5; border-color: #ddd; }
+            th { background: #eee; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ IBVAP — Incident Report</h1>
+        <div class="subtitle">Intelligent Border Video Analytics Platform • Generated: 11 September 2026, 18:56 IST</div>
+        <div class="subtitle">Zone: Restricted Area • Classification: CONFIDENTIAL</div>
+    </div>
+    
+    <div class="confidential">⚠️ CLASSIFIED — AUTHORIZED PERSONNEL ONLY ⚠️</div>
+    
+    <div class="metrics">
+        <div class="metric-card">
+            <div class="value">126</div>
+            <div class="label">Total Incidents</div>
+        </div>
+        <div class="metric-card critical">
+            <div class="value">1</div>
+            <div class="label">Critical Threats</div>
+        </div>
+        <div class="metric-card high">
+            <div class="value">4</div>
+            <div class="label">High Threats</div>
+        </div>
+        <div class="metric-card">
+            <div class="value">38</div>
+            <div class="label">Avg. Threat Score</div>
+        </div>
+    </div>
+    
+    <div class="section-title">📋 Incident Log</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Entity</th>
+                <th>Score</th>
+                <th>Level</th>
+                <th>Zone</th>
+                <th>Speed</th>
+                <th>Posture</th>
+                <th>Plate</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>18:55:29</td>
+                <td>UNKNOWN-27</td>
+                <td><strong>38</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:55:28</td>
+                <td>UNKNOWN-26</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:55:28</td>
+                <td>UNKNOWN-25</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:55:20</td>
+                <td>UNKNOWN-24</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:55:19</td>
+                <td>UNKNOWN-23</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:55:12</td>
+                <td>UNKNOWN-22</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:55:10</td>
+                <td>UNKNOWN-21</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:55:04</td>
+                <td>UNKNOWN-18</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:54:49</td>
+                <td>UNKNOWN-14</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:54:42</td>
+                <td>UNKNOWN-13</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:39:53</td>
+                <td>UNKNOWN-15</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:39:42</td>
+                <td>UNKNOWN-14</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:39:32</td>
+                <td>UNKNOWN-13</td>
+                <td><strong>38</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:39:31</td>
+                <td>UNKNOWN-12</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:39:30</td>
+                <td>UNKNOWN-11</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:39:16</td>
+                <td>UNKNOWN-10</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:39:16</td>
+                <td>UNKNOWN-09</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:39:03</td>
+                <td>UNKNOWN-08</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:38:55</td>
+                <td>UNKNOWN-07</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:38:39</td>
+                <td>UNKNOWN-06</td>
+                <td><strong>38</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:38:38</td>
+                <td>UNKNOWN-05</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:38:38</td>
+                <td>UNKNOWN-04</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:38:24</td>
+                <td>UNKNOWN-03</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:38:24</td>
+                <td>UNKNOWN-02</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:38:11</td>
+                <td>UNKNOWN-01</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:36:10</td>
+                <td>UNKNOWN-81</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:36:03</td>
+                <td>UNKNOWN-80</td>
+                <td><strong>59</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>crouching</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:35:48</td>
+                <td>UNKNOWN-79</td>
+                <td><strong>38</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:35:47</td>
+                <td>UNKNOWN-78</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:35:47</td>
+                <td>UNKNOWN-77</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:35:33</td>
+                <td>UNKNOWN-76</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:35:33</td>
+                <td>UNKNOWN-75</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:35:20</td>
+                <td>UNKNOWN-74</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:35:13</td>
+                <td>UNKNOWN-73</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:34:58</td>
+                <td>UNKNOWN-72</td>
+                <td><strong>38</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:34:57</td>
+                <td>UNKNOWN-71</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:34:57</td>
+                <td>UNKNOWN-70</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:34:43</td>
+                <td>UNKNOWN-69</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:34:43</td>
+                <td>UNKNOWN-68</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:34:30</td>
+                <td>UNKNOWN-67</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:34:23</td>
+                <td>UNKNOWN-66</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:34:08</td>
+                <td>UNKNOWN-65</td>
+                <td><strong>38</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:34:07</td>
+                <td>UNKNOWN-64</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:34:06</td>
+                <td>UNKNOWN-63</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:33:53</td>
+                <td>UNKNOWN-62</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:33:53</td>
+                <td>UNKNOWN-61</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:33:40</td>
+                <td>UNKNOWN-60</td>
+                <td><strong>35</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:33:33</td>
+                <td>UNKNOWN-59</td>
+                <td><strong>59</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>crouching</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:33:18</td>
+                <td>UNKNOWN-58</td>
+                <td><strong>38</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td>18:33:17</td>
+                <td>UNKNOWN-57</td>
+                <td><strong>36</strong></td>
+                <td><span class="badge badge-medium">MEDIUM</span></td>
+                <td>Restricted Area</td>
+                <td>stationary</td>
+                <td>standing</td>
+                <td>—</td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <div class="section-title">📊 Summary Statistics</div>
+    <div class="metrics">
+        <div class="metric-card">
+            <div class="value">0</div>
+            <div class="label">Unique Vehicles</div>
+        </div>
+        <div class="metric-card">
+            <div class="value">3</div>
+            <div class="label">Crouching Detected</div>
+        </div>
+        <div class="metric-card">
+            <div class="value">3</div>
+            <div class="label">Running Detected</div>
+        </div>
+        <div class="metric-card">
+            <div class="value">81</div>
+            <div class="label">Unique Subjects</div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p>Report generated by IBVAP — Intelligent Border Video Analytics Platform</p>
+        <p>Powered by Deep Learning (MLP Neural Network) • YOLOv8 • EasyOCR • Streamlit</p>
+        <p>© 2026 IBVAP Team — Smart India Hackathon</p>
+    </div>
+</body>
+</html>

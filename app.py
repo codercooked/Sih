@@ -512,614 +512,614 @@ def main():
         st.markdown('<div style="height: 10px"></div>', unsafe_allow_html=True)
         col_video, col_panel = st.columns([3, 2], gap="large")
 
-    with col_panel:
+        with col_panel:
 
-        # Profile card area
-        profile_placeholder = st.empty()
+            # Profile card area
+            profile_placeholder = st.empty()
 
-        # Alert log
-        alert_placeholder = st.empty()
+            # Alert log
+            alert_placeholder = st.empty()
 
-    with col_video:
-        # Start/Stop button
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            start_btn = st.button(
-                "▶️ Start Monitoring" if not st.session_state.is_running else "⏸️ Pause",
-                use_container_width=True,
-                type="primary",
-            )
-        with col_btn2:
-            stop_btn = st.button("⏹️ Stop & Reset", use_container_width=True)
+        with col_video:
+            # Start/Stop button
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                start_btn = st.button(
+                    "▶️ Start Monitoring" if not st.session_state.is_running else "⏸️ Pause",
+                    use_container_width=True,
+                    type="primary",
+                )
+            with col_btn2:
+                stop_btn = st.button("⏹️ Stop & Reset", use_container_width=True)
 
-        if start_btn:
-            st.session_state.is_running = not st.session_state.is_running
-            if st.session_state.is_running:
-                # Do not carry heat from a previous run into a new camera
-                # session, especially when switching from people to vehicles.
+            if start_btn:
+                st.session_state.is_running = not st.session_state.is_running
+                if st.session_state.is_running:
+                    # Do not carry heat from a previous run into a new camera
+                    # session, especially when switching from people to vehicles.
+                    st.session_state.pop("heatmap_accumulator", None)
+                    st.session_state.tracker = CentroidTracker(
+                        max_disappeared=config.get("tracker_max_disappeared", 30),
+                        max_distance=config.get("tracker_max_distance", 80),
+                    )
+                    tracker = st.session_state.tracker
+
+            if stop_btn:
+                st.session_state.is_running = False
+                st.session_state.tracker = None
                 st.session_state.pop("heatmap_accumulator", None)
-                st.session_state.tracker = CentroidTracker(
-                    max_disappeared=config.get("tracker_max_disappeared", 30),
-                    max_distance=config.get("tracker_max_distance", 80),
-                )
-                tracker = st.session_state.tracker
+                st.session_state.frame_count = 0
+                st.session_state.max_threat_score = 0
+                st.rerun()
 
-        if stop_btn:
-            st.session_state.is_running = False
-            st.session_state.tracker = None
-            st.session_state.pop("heatmap_accumulator", None)
-            st.session_state.frame_count = 0
-            st.session_state.max_threat_score = 0
-            st.rerun()
+            # Video display placeholder
+            video_placeholder = st.empty()
 
-        # Video display placeholder
-        video_placeholder = st.empty()
+        # ─── Video Processing Loop ──────────────────────────────────────────
+        if st.session_state.is_running and video_source is not None:
+            cap = cv2.VideoCapture(video_source)
 
-    # ─── Video Processing Loop ──────────────────────────────────────────
-    if st.session_state.is_running and video_source is not None:
-        cap = cv2.VideoCapture(video_source)
+            if not cap.isOpened():
+                st.error(f"Cannot open video source: {video_source}")
+                st.session_state.is_running = False
+                return
 
-        if not cap.isOpened():
-            st.error(f"Cannot open video source: {video_source}")
-            st.session_state.is_running = False
-            return
+            # Reset FPS counter
+            st.session_state.last_fps_time = time.time()
+            st.session_state.fps_frame_count = 0
 
-        # Reset FPS counter
-        st.session_state.last_fps_time = time.time()
-        st.session_state.fps_frame_count = 0
+            if heatmap_enabled and 'heatmap_accumulator' not in st.session_state:
+                # Initialize with our target high-FPS resolution (640x360)
+                # Match the resized processing frame to avoid OpenCV blend
+                # errors when the heatmap is composited over the live feed.
+                st.session_state.heatmap_accumulator = HeatmapAccumulator(512, 288)
 
-        if heatmap_enabled and 'heatmap_accumulator' not in st.session_state:
-            # Initialize with our target high-FPS resolution (640x360)
-            # Match the resized processing frame to avoid OpenCV blend
-            # errors when the heatmap is composited over the live feed.
-            st.session_state.heatmap_accumulator = HeatmapAccumulator(512, 288)
+            # Streamlit widgets must be created once per script run. The video
+            # loop can refresh visual placeholders repeatedly, but rendering the
+            # incident selectbox on every frame creates duplicate widget keys.
+            incident_workflow_rendered = False
+            last_detections = []
 
-        # Streamlit widgets must be created once per script run. The video
-        # loop can refresh visual placeholders repeatedly, but rendering the
-        # incident selectbox on every frame creates duplicate widget keys.
-        incident_workflow_rendered = False
-        last_detections = []
-
-        while st.session_state.is_running and cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                # Loop video for demo
-                if isinstance(video_source, str) and os.path.isfile(video_source):
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    continue
-                else:
-                    st.warning("Video stream ended.")
-                    st.session_state.is_running = False
-                    break
-            
-            # Keep the local CPU pipeline responsive. The original sample
-            # videos are larger than necessary for the operator preview.
-            frame = cv2.resize(frame, (512, 288), interpolation=cv2.INTER_AREA)
-            
-            st.session_state.frame_count += 1
-            
-            # Render the lightweight preview more often than the analytics
-            # pipeline so the operator feed stays responsive.
-            render_this_frame = (st.session_state.frame_count % 2 == 0)
-            inference_this_frame = st.session_state.frame_count % 4 == 0
-
-            # Fast display path: between analytics frames, do not run the
-            # tracker, zone logic, pose model, heatmap, or event pipeline.
-            # This is the key latency fix for CPU-only local playback.
-            if not inference_this_frame:
-                if render_this_frame:
-                    video_placeholder.image(
-                        cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),
-                        channels="RGB",
-                        use_container_width=True,
-                    )
-                continue
-
-            # ── Step 1: Night Enhancement ──
-            frame, is_night_mode = night_enhancer.enhance(frame)
-
-            # ── Step 2: Object Detection ──
-            # YOLO inference is the most expensive operation in the local
-            # CPU pipeline. Reuse the latest detections on alternate frames
-            # so the preview remains fluid while tracking continues.
-            if inference_this_frame or not last_detections:
-                last_detections = detector.detect(frame)
-            detections = last_detections
-            person_detections = detector.get_persons(detections)
-            vehicle_detections = detector.get_vehicles(detections)
-
-            # ── Step 3: Update Tracker (persons + vehicles) ──
-            trackable = person_detections + vehicle_detections
-            entities = tracker.update(trackable)
-
-            # ── Step 4: Zone Analysis ──
-            zone = zone_manager.zones[0] if zone_manager.zones else None
-            persons_in_zone = 0
-            is_zone_intruded = False
-
-            for entity_id, entity in entities.items():
-                if zone:
-                    prev_pos = entity.position_history[-2] if len(entity.position_history) >= 2 else None
-                    zone_event = zone.check_entity(entity.centroid, prev_pos)
-                    entity.is_in_zone = zone_event.is_inside
-
-                    if zone_event.is_inside:
-                        is_zone_intruded = True
-                        if entity.class_name == "person":
-                            persons_in_zone += 1
-                        if entity.zone_entry_time is None:
-                            entity.zone_entry_time = time.time()
-
-                        # Add zone entry tag
-                        if "zone_entry" not in entity.behavior_tags:
-                            entity.behavior_tags.append("zone_entry")
-
-                        # Check for entering event
-                        if zone_event.direction == "ENTERING":
-                            if "entering" not in entity.behavior_tags:
-                                entity.behavior_tags.append("entering")
+            while st.session_state.is_running and cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    # Loop video for demo
+                    if isinstance(video_source, str) and os.path.isfile(video_source):
+                        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                        continue
                     else:
-                        entity.zone_entry_time = None
-                        entity.is_in_zone = False
+                        st.warning("Video stream ended.")
+                        st.session_state.is_running = False
+                        break
 
-            # ── Step 5: Behavior Analysis ──
-            weapon_dets = detector.get_weapons(detections) if weapon_detection_enabled else []
+                # Keep the local CPU pipeline responsive. The original sample
+                # videos are larger than necessary for the operator preview.
+                frame = cv2.resize(frame, (512, 288), interpolation=cv2.INTER_AREA)
 
-            for entity_id, entity in entities.items():
-                is_person = entity.class_name == "person"
+                st.session_state.frame_count += 1
 
-                zone_center = zone.get_center() if zone else None
-                behavior = behavior_analyzer.analyze_entity(
-                    entity_id=entity_id,
-                    position_history=entity.position_history,
-                    is_in_zone=entity.is_in_zone,
-                    zone_entry_time=entity.zone_entry_time,
-                    zone_center=zone_center,
-                )
+                # Render the lightweight preview more often than the analytics
+                # pipeline so the operator feed stays responsive.
+                render_this_frame = (st.session_state.frame_count % 2 == 0)
+                inference_this_frame = st.session_state.frame_count % 4 == 0
 
-                # Update entity with behavior tags
-                for tag in behavior.tags:
-                    if tag not in entity.behavior_tags:
-                        entity.behavior_tags.append(tag)
+                # Fast display path: between analytics frames, do not run the
+                # tracker, zone logic, pose model, heatmap, or event pipeline.
+                # This is the key latency fix for CPU-only local playback.
+                if not inference_this_frame:
+                    if render_this_frame:
+                        video_placeholder.image(
+                            cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),
+                            channels="RGB",
+                            use_container_width=True,
+                        )
+                    continue
 
-                # Heatmap only human movement; vehicle tracks stay available
-                # for detection and alerts without adding overlay workload.
-                if inference_this_frame and heatmap_enabled and 'heatmap_accumulator' in st.session_state and is_person:
-                    cx, cy = entity.centroid
-                    st.session_state.heatmap_accumulator.add_point(cx, cy)
+                # ── Step 1: Night Enhancement ──
+                frame, is_night_mode = night_enhancer.enhance(frame)
 
-                # Check erratic movement
-                is_erratic = behavior_analyzer.detect_erratic_movement(entity.position_history)
-                if is_erratic and "erratic_movement" not in entity.behavior_tags:
-                    entity.behavior_tags.append("erratic_movement")
+                # ── Step 2: Object Detection ──
+                # YOLO inference is the most expensive operation in the local
+                # CPU pipeline. Reuse the latest detections on alternate frames
+                # so the preview remains fluid while tracking continues.
+                if inference_this_frame or not last_detections:
+                    last_detections = detector.detect(frame)
+                detections = last_detections
+                person_detections = detector.get_persons(detections)
+                vehicle_detections = detector.get_vehicles(detections)
 
-                # ── Step 6: Pose Analysis (every 3rd frame for performance) ──
-                if pose_analyzer and is_person and inference_this_frame:
-                    try:
-                        pose_result = pose_analyzer.analyze(frame, entity.bbox)
-                        if pose_result.confidence >= config.get("pose_confidence_threshold", 0.6):
-                            entity.posture = pose_result.posture
-                            entity.skeleton = pose_result.landmarks
-                            for tag in pose_result.tags:
-                                if tag not in entity.behavior_tags:
-                                    entity.behavior_tags.append(tag)
-                    except Exception:
-                        pass  # Pose estimation can fail on edge cases
+                # ── Step 3: Update Tracker (persons + vehicles) ──
+                trackable = person_detections + vehicle_detections
+                entities = tracker.update(trackable)
 
-                # ── Step 6b: Weapon Detection ──
-                has_weapon = False
-                weapon_type = ""
-                if weapon_dets:
-                    ex1, ey1, ex2, ey2 = entity.bbox
-                    for weapon in weapon_dets:
-                        wx1, wy1, wx2, wy2 = weapon.bbox
-                        wcx = (wx1 + wx2) // 2
-                        wcy = (wy1 + wy2) // 2
-                        if ex1 <= wcx <= ex2 and ey1 <= wcy <= ey2:
-                            has_weapon = True
-                            weapon_type = weapon.class_name
-                            break
-                    if has_weapon and "weapon_detected" not in entity.behavior_tags:
-                        entity.behavior_tags.append("weapon_detected")
+                # ── Step 4: Zone Analysis ──
+                zone = zone_manager.zones[0] if zone_manager.zones else None
+                persons_in_zone = 0
+                is_zone_intruded = False
 
-                # ── Step 6c: Direction Toward Zone ──
-                direction_toward = 0.0
-                if zone_center and len(entity.position_history) >= 2:
-                    direction_toward = compute_direction_toward_point(
-                        entity.position_history, zone_center
-                    )
+                for entity_id, entity in entities.items():
+                    if zone:
+                        prev_pos = entity.position_history[-2] if len(entity.position_history) >= 2 else None
+                        zone_event = zone.check_entity(entity.centroid, prev_pos)
+                        entity.is_in_zone = zone_event.is_inside
 
-                # ── Step 7: Threat Scoring ──
-                group_report = behavior_analyzer.analyze_group(
-                    zone_name=config.get("zone_name", "Restricted Area"),
-                    persons_in_zone=persons_in_zone,
-                )
+                        if zone_event.is_inside:
+                            is_zone_intruded = True
+                            if entity.class_name == "person":
+                                persons_in_zone += 1
+                            if entity.zone_entry_time is None:
+                                entity.zone_entry_time = time.time()
 
-                threat = threat_scorer.calculate(
-                    entity_type=1 if entity.class_name in ["car", "motorcycle", "truck", "bus"] else 0,
-                    is_in_zone=entity.is_in_zone,
-                    loitering_duration=entity.duration_in_zone,
-                    persons_in_zone=persons_in_zone,
-                    speed_category=behavior.speed_category,
-                    is_moving_toward_zone=behavior.is_moving_toward_zone,
-                    is_night_mode=is_night_mode,
-                    posture=entity.posture or "standing",
-                    is_erratic=is_erratic,
-                    hour_of_day=datetime.now().hour,
-                    direction_toward_zone=direction_toward,
-                    crowd_density_gradient=0.0,
-                    has_weapon=has_weapon,
-                    time_since_last=time.time() - entity.last_seen if hasattr(entity, 'last_seen') else 0.0,
-                    has_readable_plate=1 if (entity.vehicle_plate and entity.vehicle_plate != "UNREADABLE") else 0,
-                    is_unauthorized_plate=1 if getattr(entity, 'is_unauthorized_plate', False) else 0,
-                )
+                            # Add zone entry tag
+                            if "zone_entry" not in entity.behavior_tags:
+                                entity.behavior_tags.append("zone_entry")
 
-                entity.threat_score = threat.score
-                entity.threat_breakdown = {name: pts for name, pts in threat.breakdown}
+                            # Check for entering event
+                            if zone_event.direction == "ENTERING":
+                                if "entering" not in entity.behavior_tags:
+                                    entity.behavior_tags.append("entering")
+                        else:
+                            entity.zone_entry_time = None
+                            entity.is_in_zone = False
 
-                # ── Step 7.5: Biometric Face Scanning ──
-                entity.face_data = []
-                if face_enabled and face_scanner is not None and entity.class_name == "person":
-                    face_data = face_scanner.scan_for_faces(frame, entity.bbox)
-                    if face_data:
-                        entity.face_data = face_data
-                        for data in face_data:
-                            if data["watchlist_match"]:
-                                threat.score = max(threat.score, 100)
-                                entity.threat_score = threat.score
-                                if "WATCHLIST MATCH" not in entity.behavior_tags:
-                                    entity.behavior_tags.append("WATCHLIST MATCH")
-                                entity.threat_breakdown["Biometric Watchlist"] = 100
-                                break
+                # ── Step 5: Behavior Analysis ──
+                weapon_dets = detector.get_weapons(detections) if weapon_detection_enabled else []
 
-                # Track max threat
-                if threat.score > st.session_state.max_threat_score:
-                    st.session_state.max_threat_score = threat.score
+                for entity_id, entity in entities.items():
+                    is_person = entity.class_name == "person"
 
-                # ── Step 8: Event Logging (Persons) ──
-                should_log = False
-                last_log = st.session_state.last_log_time.get(entity_id, 0)
-                time_since_log = time.time() - last_log
-
-                if entity.is_in_zone and (
-                    time_since_log > 30  # Every 30s of loitering
-                    or last_log == 0     # First detection in zone
-                    or threat.score >= 60 and time_since_log > 10  # High threat, more frequent
-                ):
-                    should_log = True
-
-                if should_log:
-                    snapshot_path = event_store.save_snapshot(frame, entity_id)
-                    event_store.log_event(
+                    zone_center = zone.get_center() if zone else None
+                    behavior = behavior_analyzer.analyze_entity(
                         entity_id=entity_id,
-                        zone_name=config.get("zone_name", ""),
-                        threat_score=threat.score,
-                        threat_level=threat.level,
-                        behaviour_tags=entity.behavior_tags,
-                        snapshot_path=snapshot_path,
-                        vehicle_plate=entity.vehicle_plate or "",
-                        num_persons_in_zone=persons_in_zone,
-                        speed_category=behavior.speed_category,
-                        posture=entity.posture or "standing",
-                        loitering_duration_sec=entity.duration_in_zone,
-                    )
-                    st.session_state.last_log_time[entity_id] = time.time()
-                    
-                    # Hardware Integration Mocks (SIH Feature)
-                    if threat.score >= 80:
-                        if sms_alerts_enabled:
-                            st.toast(f"📱 SMS Sent to Commander: CRITICAL threat from {entity_id} at {config.get('zone_name', 'Sector')}!", icon="📱")
-                        if siren_enabled:
-                            st.toast(f"🚨 Local Siren Triggered for {entity_id}!", icon="🚨")
-
-            # ── Decay Heatmap ──
-            if heatmap_enabled and 'heatmap_accumulator' in st.session_state:
-                st.session_state.heatmap_accumulator.update()
-
-            # ── Step 7b: Abandoned Baggage ──
-            if baggage_enabled:
-                baggage_items = tracker.get_baggage()
-                persons = tracker.get_persons()
-                for bag_id, bag in baggage_items.items():
-                    if bag.is_in_zone and bag.duration_in_zone > 10:
-                        min_dist = float('inf')
-                        for person_id, person in persons.items():
-                            dist = np.linalg.norm(np.array(bag.centroid) - np.array(person.centroid))
-                            min_dist = min(min_dist, dist)
-                        
-                        if min_dist > 150: # Pixels away
-                            if "abandoned_baggage" not in bag.behavior_tags:
-                                bag.behavior_tags.append("abandoned_baggage")
-                            bag.threat_score = 85
-                            bag.threat_breakdown = {"Abandoned Baggage Detected": 85}
-                            if bag.threat_score > st.session_state.max_threat_score:
-                                st.session_state.max_threat_score = bag.threat_score
-                            
-                            # Log Baggage Event
-                            last_log = st.session_state.last_log_time.get(bag_id, 0)
-                            if time.time() - last_log > 30 or last_log == 0:
-                                snapshot_path = event_store.save_snapshot(frame, bag_id)
-                                event_store.log_event(
-                                    entity_id=bag_id,
-                                    zone_name=config.get("zone_name", ""),
-                                    threat_score=bag.threat_score,
-                                    threat_level="critical",
-                                    behaviour_tags=bag.behavior_tags,
-                                    snapshot_path=snapshot_path,
-                                    vehicle_plate="",
-                                    num_persons_in_zone=persons_in_zone,
-                                    speed_category="stationary",
-                                    posture="unknown",
-                                    loitering_duration_sec=bag.duration_in_zone,
-                                )
-                                st.session_state.last_log_time[bag_id] = time.time()
-                                
-                                # Hardware Integration Mocks (SIH Feature)
-                                if sms_alerts_enabled:
-                                    st.toast(f"📱 SMS Sent to Commander: Abandoned Baggage detected at {config.get('zone_name', 'Sector')}!", icon="📱")
-                                if siren_enabled:
-                                    st.toast(f"🚨 Local Siren Triggered for Baggage Alert!", icon="🚨")
-
-
-
-            # ── Step 9: ANPR (for vehicles in zone) ──
-            if anpr_engine:
-                for entity_id, entity in entities.items():
-                    if entity.class_name in ("car", "truck", "bus", "motorcycle"):
-                        if entity.vehicle_plate is None and entity.is_in_zone:
-                            try:
-                                plate_result = anpr_engine.read_plate(frame, entity.bbox)
-                                if plate_result.is_readable:
-                                    entity.vehicle_plate = plate_result.text
-                                    entity.is_unauthorized_plate = plate_result.is_unauthorized
-                            except Exception:
-                                pass
-
-            # ── Step 10: Draw Overlays ──
-            display_frame = frame.copy()
-
-            has_current_person = bool(person_detections)
-            if heatmap_enabled and has_current_person and 'heatmap_accumulator' in st.session_state:
-                display_frame = st.session_state.heatmap_accumulator.blend(display_frame)
-
-            # Draw zone
-            if zone:
-                display_frame = draw_zone(
-                    display_frame,
-                    zone.polygon,
-                    is_intruded=is_zone_intruded,
-                    zone_name=config.get("zone_name", "Restricted Area"),
-                )
-
-            # Draw detections and tracked entities
-            display_frame = draw_detections(display_frame, detections, entities)
-
-            # Draw threat badge (highest score)
-            if entities:
-                max_entity = max(entities.values(), key=lambda e: e.threat_score)
-                if max_entity.threat_score > 0:
-                    level = "low"
-                    if max_entity.threat_score >= 80:
-                        level = "critical"
-                    elif max_entity.threat_score >= 60:
-                        level = "high"
-                    elif max_entity.threat_score >= 30:
-                        level = "medium"
-                    display_frame = draw_threat_badge(
-                        display_frame, max_entity.threat_score, level
+                        position_history=entity.position_history,
+                        is_in_zone=entity.is_in_zone,
+                        zone_entry_time=entity.zone_entry_time,
+                        zone_center=zone_center,
                     )
 
-            # Draw vehicle plates
-            for entity_id, entity in entities.items():
-                if entity.vehicle_plate:
-                    display_frame = draw_plate_text(
-                        display_frame,
-                        entity.vehicle_plate,
-                        (entity.bbox[0], entity.bbox[1] - 30),
-                    )
-                # Draw Biometric Scans
-                if hasattr(entity, 'face_data') and entity.face_data:
-                    display_frame = face_scanner.draw_biometric_scan(display_frame, entity.face_data)
-                # Draw Skeleton / Pose Landmarks
-                if hasattr(entity, 'skeleton') and entity.skeleton:
-                    if pose_analyzer:
-                        display_frame = pose_analyzer.draw_skeleton(display_frame, entity.skeleton)
+                    # Update entity with behavior tags
+                    for tag in behavior.tags:
+                        if tag not in entity.behavior_tags:
+                            entity.behavior_tags.append(tag)
 
-            # ── Step 10b: Trajectory Prediction Lines ──
-            if trajectory_enabled:
-                for entity_id, entity in entities.items():
-                    if entity.class_name == "person" and len(entity.position_history) >= 5:
-                        predicted = predict_trajectory(entity.position_history)
-                        if predicted:
-                            display_frame = draw_trajectory(display_frame, predicted)
+                    # Heatmap only human movement; vehicle tracks stay available
+                    # for detection and alerts without adding overlay workload.
+                    if inference_this_frame and heatmap_enabled and 'heatmap_accumulator' in st.session_state and is_person:
+                        cx, cy = entity.centroid
+                        st.session_state.heatmap_accumulator.add_point(cx, cy)
 
-            # ── Step 10c: Predictive Zone Breach Alert ──
-            if predictive_breach_enabled and zone:
-                for entity_id, entity in entities.items():
-                    if entity.class_name == "person" and not entity.is_in_zone and len(entity.position_history) >= 5:
-                        predicted = predict_trajectory(entity.position_history, num_future_points=20)
-                        if predicted:
-                            # Check if any predicted point falls inside the zone
-                            for pt in predicted:
-                                if zone.point_in_polygon(pt):
-                                    # PREDICTIVE ALERT — person will breach in the future
-                                    h_f, w_f = display_frame.shape[:2]
-                                    banner = f"PREDICTIVE ALERT: {entity_id} approaching zone!"
-                                    (tw, th), _ = cv2.getTextSize(banner, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-                                    bx = (w_f - tw) // 2
-                                    by = h_f - 40
-                                    cv2.rectangle(display_frame, (bx - 10, by - th - 10), (bx + tw + 10, by + 10), (0, 140, 255), -1)
-                                    cv2.putText(display_frame, banner, (bx, by), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
-                                    
-                                    if 'last_predictive_time' not in st.session_state:
-                                        st.session_state.last_predictive_time = 0
-                                    if time.time() - st.session_state.last_predictive_time > 8:
-                                        st.toast(f"⚡ PREDICTIVE: {entity_id} will breach zone in ~5 seconds!", icon="⚡")
-                                        st.session_state.last_predictive_time = time.time()
-                                    break
+                    # Check erratic movement
+                    is_erratic = behavior_analyzer.detect_erratic_movement(entity.position_history)
+                    if is_erratic and "erratic_movement" not in entity.behavior_tags:
+                        entity.behavior_tags.append("erratic_movement")
 
-            # ── Step 10d: Weapon Alert Overlay ──
-            if weapon_detection_enabled:
-                weapon_dets = detector.get_weapons(detections)
-                if weapon_dets:
-                    display_frame = draw_weapon_alert(display_frame, weapon_dets)
+                    # ── Step 6: Pose Analysis (every 3rd frame for performance) ──
+                    if pose_analyzer and is_person and inference_this_frame:
+                        try:
+                            pose_result = pose_analyzer.analyze(frame, entity.bbox)
+                            if pose_result.confidence >= config.get("pose_confidence_threshold", 0.6):
+                                entity.posture = pose_result.posture
+                                entity.skeleton = pose_result.landmarks
+                                for tag in pose_result.tags:
+                                    if tag not in entity.behavior_tags:
+                                        entity.behavior_tags.append(tag)
+                        except Exception:
+                            pass  # Pose estimation can fail on edge cases
 
-            # Night mode indicator
-            if is_night_mode:
-                display_frame = draw_night_mode_indicator(display_frame)
+                    # ── Step 6b: Weapon Detection ──
+                    has_weapon = False
+                    weapon_type = ""
+                    if weapon_dets:
+                        ex1, ey1, ex2, ey2 = entity.bbox
+                        for weapon in weapon_dets:
+                            wx1, wy1, wx2, wy2 = weapon.bbox
+                            wcx = (wx1 + wx2) // 2
+                            wcy = (wy1 + wy2) // 2
+                            if ex1 <= wcx <= ex2 and ey1 <= wcy <= ey2:
+                                has_weapon = True
+                                weapon_type = weapon.class_name
+                                break
+                        if has_weapon and "weapon_detected" not in entity.behavior_tags:
+                            entity.behavior_tags.append("weapon_detected")
 
-            # FPS calculation
-            st.session_state.fps_frame_count += 1
-            elapsed = time.time() - st.session_state.last_fps_time
-            if elapsed >= 1.0:
-                st.session_state.fps = st.session_state.fps_frame_count / elapsed
-                st.session_state.fps_frame_count = 0
-                st.session_state.last_fps_time = time.time()
-
-            display_frame = draw_fps(display_frame, st.session_state.fps)
-
-            # ── Step 10e: Audio Alert (browser beep) ──
-            if audio_alerts_enabled and entities:
-                max_e = max(entities.values(), key=lambda e: e.threat_score)
-                if max_e.threat_score >= 80:
-                    if 'last_audio_time' not in st.session_state:
-                        st.session_state.last_audio_time = 0
-                    if time.time() - st.session_state.last_audio_time > 10:
-                        st.toast("🔊 AUDIO ALERT: Critical threat detected!", icon="🔊")
-                        st.session_state.last_audio_time = time.time()
-
-            # ── Step 11: Update Dashboard (Smooth 30 FPS, Zero Blinking) ──
-            if render_this_frame:
-                # Check for critical threat to display Drone Intercept HUD as seamless PiP overlay
-                if entities:
-                    max_e = max(entities.values(), key=lambda e: e.threat_score)
-                    if max_e.threat_score >= 80: # Critical threat
-                        from ui.drone_hud import generate_drone_hud_frame
-                        hud_pip = generate_drone_hud_frame(frame, max_e.bbox, target_w=150, target_h=120)
-                        if hud_pip is not None:
-                            h_pip, w_pip = hud_pip.shape[:2]
-                            display_frame[10:10+h_pip, -10-w_pip:-10] = hud_pip
-
-                # Single unified image feed — never swaps containers or causes DOM flickering
-                display_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
-                video_placeholder.image(display_rgb, channels="RGB", use_container_width=True)
-
-                now_t = time.time()
-
-                # Status bar (throttled to 1.5s to prevent metrics tearing / strobe effect)
-                if 'last_status_update' not in st.session_state:
-                    st.session_state.last_status_update = 0.0
-
-                if now_t - st.session_state.last_status_update >= 1.5:
-                    st.session_state.last_status_update = now_t
-                    with status_placeholder.container():
-                        render_status_bar(
-                            is_active=True,
-                            fps=st.session_state.fps,
-                            total_entities=tracker.total_tracked,
-                            active_entities=tracker.active_count,
-                            total_alerts=event_store.get_event_count(),
-                            is_night_mode=is_night_mode,
-                            video_source=str(video_source),
+                    # ── Step 6c: Direction Toward Zone ──
+                    direction_toward = 0.0
+                    if zone_center and len(entity.position_history) >= 2:
+                        direction_toward = compute_direction_toward_point(
+                            entity.position_history, zone_center
                         )
 
-                # Profile card and Alert log update (Throttled to 2.5s for calm, readable UI)
-                if 'last_dashboard_update' not in st.session_state:
-                    st.session_state.last_dashboard_update = 0.0
+                    # ── Step 7: Threat Scoring ──
+                    group_report = behavior_analyzer.analyze_group(
+                        zone_name=config.get("zone_name", "Restricted Area"),
+                        persons_in_zone=persons_in_zone,
+                    )
 
-                if now_t - st.session_state.last_dashboard_update >= 2.5:
-                    st.session_state.last_dashboard_update = now_t
-                    
-                    # Profile card for highest-threat entity
-                    with profile_placeholder.container():
-                        if entities:
-                            max_entity = max(entities.values(), key=lambda e: e.threat_score)
-                            if max_entity.threat_score > 0:
-                                threat_for_profile = threat_scorer.calculate(
-                                    entity_type=1 if max_entity.class_name in ["car", "motorcycle", "truck", "bus"] else 0,
-                                    is_in_zone=max_entity.is_in_zone,
-                                    loitering_duration=max_entity.duration_in_zone,
-                                    persons_in_zone=persons_in_zone,
-                                    posture=max_entity.posture or "standing",
-                                    is_night_mode=is_night_mode,
-                                    has_readable_plate=1 if (max_entity.vehicle_plate and max_entity.vehicle_plate != "UNREADABLE") else 0,
-                                    is_unauthorized_plate=1 if getattr(max_entity, 'is_unauthorized_plate', False) else 0,
-                                )
-                                profile = profiler.build_profile(
-                                    max_entity, frame, threat_for_profile
-                                )
-                                profile.zone_name = config.get("zone_name", "")
-                                render_profile_card(profile)
-    
-                    # Alert log + AI Narrative
-                    with alert_placeholder.container():
-                        # AI Narrative for highest threat entity
-                        if narrative_enabled and entities:
-                            max_entity = max(entities.values(), key=lambda e: e.threat_score)
-                            if max_entity.threat_score > 10:
-                                narrative = generate_narrative(
-                                    entity_id=max_entity.entity_id,
-                                    entity_type=max_entity.class_name,
-                                    zone_name=config.get("zone_name", "Restricted Area"),
-                                    threat_score=max_entity.threat_score,
-                                    threat_level="critical" if max_entity.threat_score >= 80 else "high" if max_entity.threat_score >= 60 else "medium" if max_entity.threat_score >= 30 else "low",
-                                    behavior_tags=max_entity.behavior_tags,
-                                    posture=max_entity.posture or "standing",
-                                    loitering_duration=max_entity.duration_in_zone,
-                                    is_night_mode=is_night_mode,
-                                    vehicle_plate=max_entity.vehicle_plate or "",
-                                    persons_in_zone=persons_in_zone,
-                                    has_weapon="weapon_detected" in max_entity.behavior_tags,
-                                )
-                                st.markdown(
-                                    f'<div style="padding: 10px 14px; background: linear-gradient(135deg, #1a1a2e, #16213e); '
-                                    f'border-radius: 8px; border-left: 4px solid #69F0AE; margin-bottom: 10px; font-size: 13px;">'
-                                    f'<strong style="color: #69F0AE;">🤖 AI Threat Narrative</strong><br>'
-                                    f'<span style="color: #c9d1d9;">{narrative}</span>'
-                                    f'</div>',
-                                    unsafe_allow_html=True,
-                                )
-    
-                        recent_events = event_store.get_recent_events(limit=15)
-                        render_alert_summary(recent_events)
-                        if not incident_workflow_rendered:
-                            render_incident_workflow(recent_events, event_store)
-                            incident_workflow_rendered = True
-                        render_alert_panel(recent_events, max_display=10)
+                    threat = threat_scorer.calculate(
+                        entity_type=1 if entity.class_name in ["car", "motorcycle", "truck", "bus"] else 0,
+                        is_in_zone=entity.is_in_zone,
+                        loitering_duration=entity.duration_in_zone,
+                        persons_in_zone=persons_in_zone,
+                        speed_category=behavior.speed_category,
+                        is_moving_toward_zone=behavior.is_moving_toward_zone,
+                        is_night_mode=is_night_mode,
+                        posture=entity.posture or "standing",
+                        is_erratic=is_erratic,
+                        hour_of_day=datetime.now().hour,
+                        direction_toward_zone=direction_toward,
+                        crowd_density_gradient=0.0,
+                        has_weapon=has_weapon,
+                        time_since_last=time.time() - entity.last_seen if hasattr(entity, 'last_seen') else 0.0,
+                        has_readable_plate=1 if (entity.vehicle_plate and entity.vehicle_plate != "UNREADABLE") else 0,
+                        is_unauthorized_plate=1 if getattr(entity, 'is_unauthorized_plate', False) else 0,
+                    )
 
-                # Smooth frame rate pacing (avoids websocket browser overload)
-                time.sleep(0.03)
+                    entity.threat_score = threat.score
+                    entity.threat_breakdown = {name: pts for name, pts in threat.breakdown}
 
-        cap.release()
+                    # ── Step 7.5: Biometric Face Scanning ──
+                    entity.face_data = []
+                    if face_enabled and face_scanner is not None and entity.class_name == "person":
+                        face_data = face_scanner.scan_for_faces(frame, entity.bbox)
+                        if face_data:
+                            entity.face_data = face_data
+                            for data in face_data:
+                                if data["watchlist_match"]:
+                                    threat.score = max(threat.score, 100)
+                                    entity.threat_score = threat.score
+                                    if "WATCHLIST MATCH" not in entity.behavior_tags:
+                                        entity.behavior_tags.append("WATCHLIST MATCH")
+                                    entity.threat_breakdown["Biometric Watchlist"] = 100
+                                    break
 
-    elif not st.session_state.is_running:
-        # Show idle state
-        with status_placeholder.container():
-            render_status_bar(
-                is_active=False,
-                fps=0.0,
-                total_entities=0,
-                active_entities=0,
-                total_alerts=event_store.get_event_count(),
+                    # Track max threat
+                    if threat.score > st.session_state.max_threat_score:
+                        st.session_state.max_threat_score = threat.score
+
+                    # ── Step 8: Event Logging (Persons) ──
+                    should_log = False
+                    last_log = st.session_state.last_log_time.get(entity_id, 0)
+                    time_since_log = time.time() - last_log
+
+                    if entity.is_in_zone and (
+                        time_since_log > 30  # Every 30s of loitering
+                        or last_log == 0     # First detection in zone
+                        or threat.score >= 60 and time_since_log > 10  # High threat, more frequent
+                    ):
+                        should_log = True
+
+                    if should_log:
+                        snapshot_path = event_store.save_snapshot(frame, entity_id)
+                        event_store.log_event(
+                            entity_id=entity_id,
+                            zone_name=config.get("zone_name", ""),
+                            threat_score=threat.score,
+                            threat_level=threat.level,
+                            behaviour_tags=entity.behavior_tags,
+                            snapshot_path=snapshot_path,
+                            vehicle_plate=entity.vehicle_plate or "",
+                            num_persons_in_zone=persons_in_zone,
+                            speed_category=behavior.speed_category,
+                            posture=entity.posture or "standing",
+                            loitering_duration_sec=entity.duration_in_zone,
+                        )
+                        st.session_state.last_log_time[entity_id] = time.time()
+
+                        # Hardware Integration Mocks (SIH Feature)
+                        if threat.score >= 80:
+                            if sms_alerts_enabled:
+                                st.toast(f"📱 SMS Sent to Commander: CRITICAL threat from {entity_id} at {config.get('zone_name', 'Sector')}!", icon="📱")
+                            if siren_enabled:
+                                st.toast(f"🚨 Local Siren Triggered for {entity_id}!", icon="🚨")
+
+                # ── Decay Heatmap ──
+                if heatmap_enabled and 'heatmap_accumulator' in st.session_state:
+                    st.session_state.heatmap_accumulator.update()
+
+                # ── Step 7b: Abandoned Baggage ──
+                if baggage_enabled:
+                    baggage_items = tracker.get_baggage()
+                    persons = tracker.get_persons()
+                    for bag_id, bag in baggage_items.items():
+                        if bag.is_in_zone and bag.duration_in_zone > 10:
+                            min_dist = float('inf')
+                            for person_id, person in persons.items():
+                                dist = np.linalg.norm(np.array(bag.centroid) - np.array(person.centroid))
+                                min_dist = min(min_dist, dist)
+
+                            if min_dist > 150: # Pixels away
+                                if "abandoned_baggage" not in bag.behavior_tags:
+                                    bag.behavior_tags.append("abandoned_baggage")
+                                bag.threat_score = 85
+                                bag.threat_breakdown = {"Abandoned Baggage Detected": 85}
+                                if bag.threat_score > st.session_state.max_threat_score:
+                                    st.session_state.max_threat_score = bag.threat_score
+
+                                # Log Baggage Event
+                                last_log = st.session_state.last_log_time.get(bag_id, 0)
+                                if time.time() - last_log > 30 or last_log == 0:
+                                    snapshot_path = event_store.save_snapshot(frame, bag_id)
+                                    event_store.log_event(
+                                        entity_id=bag_id,
+                                        zone_name=config.get("zone_name", ""),
+                                        threat_score=bag.threat_score,
+                                        threat_level="critical",
+                                        behaviour_tags=bag.behavior_tags,
+                                        snapshot_path=snapshot_path,
+                                        vehicle_plate="",
+                                        num_persons_in_zone=persons_in_zone,
+                                        speed_category="stationary",
+                                        posture="unknown",
+                                        loitering_duration_sec=bag.duration_in_zone,
+                                    )
+                                    st.session_state.last_log_time[bag_id] = time.time()
+
+                                    # Hardware Integration Mocks (SIH Feature)
+                                    if sms_alerts_enabled:
+                                        st.toast(f"📱 SMS Sent to Commander: Abandoned Baggage detected at {config.get('zone_name', 'Sector')}!", icon="📱")
+                                    if siren_enabled:
+                                        st.toast(f"🚨 Local Siren Triggered for Baggage Alert!", icon="🚨")
+
+
+
+                # ── Step 9: ANPR (for vehicles in zone) ──
+                if anpr_engine:
+                    for entity_id, entity in entities.items():
+                        if entity.class_name in ("car", "truck", "bus", "motorcycle"):
+                            if entity.vehicle_plate is None and entity.is_in_zone:
+                                try:
+                                    plate_result = anpr_engine.read_plate(frame, entity.bbox)
+                                    if plate_result.is_readable:
+                                        entity.vehicle_plate = plate_result.text
+                                        entity.is_unauthorized_plate = plate_result.is_unauthorized
+                                except Exception:
+                                    pass
+
+                # ── Step 10: Draw Overlays ──
+                display_frame = frame.copy()
+
+                has_current_person = bool(person_detections)
+                if heatmap_enabled and has_current_person and 'heatmap_accumulator' in st.session_state:
+                    display_frame = st.session_state.heatmap_accumulator.blend(display_frame)
+
+                # Draw zone
+                if zone:
+                    display_frame = draw_zone(
+                        display_frame,
+                        zone.polygon,
+                        is_intruded=is_zone_intruded,
+                        zone_name=config.get("zone_name", "Restricted Area"),
+                    )
+
+                # Draw detections and tracked entities
+                display_frame = draw_detections(display_frame, detections, entities)
+
+                # Draw threat badge (highest score)
+                if entities:
+                    max_entity = max(entities.values(), key=lambda e: e.threat_score)
+                    if max_entity.threat_score > 0:
+                        level = "low"
+                        if max_entity.threat_score >= 80:
+                            level = "critical"
+                        elif max_entity.threat_score >= 60:
+                            level = "high"
+                        elif max_entity.threat_score >= 30:
+                            level = "medium"
+                        display_frame = draw_threat_badge(
+                            display_frame, max_entity.threat_score, level
+                        )
+
+                # Draw vehicle plates
+                for entity_id, entity in entities.items():
+                    if entity.vehicle_plate:
+                        display_frame = draw_plate_text(
+                            display_frame,
+                            entity.vehicle_plate,
+                            (entity.bbox[0], entity.bbox[1] - 30),
+                        )
+                    # Draw Biometric Scans
+                    if hasattr(entity, 'face_data') and entity.face_data:
+                        display_frame = face_scanner.draw_biometric_scan(display_frame, entity.face_data)
+                    # Draw Skeleton / Pose Landmarks
+                    if hasattr(entity, 'skeleton') and entity.skeleton:
+                        if pose_analyzer:
+                            display_frame = pose_analyzer.draw_skeleton(display_frame, entity.skeleton)
+
+                # ── Step 10b: Trajectory Prediction Lines ──
+                if trajectory_enabled:
+                    for entity_id, entity in entities.items():
+                        if entity.class_name == "person" and len(entity.position_history) >= 5:
+                            predicted = predict_trajectory(entity.position_history)
+                            if predicted:
+                                display_frame = draw_trajectory(display_frame, predicted)
+
+                # ── Step 10c: Predictive Zone Breach Alert ──
+                if predictive_breach_enabled and zone:
+                    for entity_id, entity in entities.items():
+                        if entity.class_name == "person" and not entity.is_in_zone and len(entity.position_history) >= 5:
+                            predicted = predict_trajectory(entity.position_history, num_future_points=20)
+                            if predicted:
+                                # Check if any predicted point falls inside the zone
+                                for pt in predicted:
+                                    if zone.point_in_polygon(pt):
+                                        # PREDICTIVE ALERT — person will breach in the future
+                                        h_f, w_f = display_frame.shape[:2]
+                                        banner = f"PREDICTIVE ALERT: {entity_id} approaching zone!"
+                                        (tw, th), _ = cv2.getTextSize(banner, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+                                        bx = (w_f - tw) // 2
+                                        by = h_f - 40
+                                        cv2.rectangle(display_frame, (bx - 10, by - th - 10), (bx + tw + 10, by + 10), (0, 140, 255), -1)
+                                        cv2.putText(display_frame, banner, (bx, by), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+
+                                        if 'last_predictive_time' not in st.session_state:
+                                            st.session_state.last_predictive_time = 0
+                                        if time.time() - st.session_state.last_predictive_time > 8:
+                                            st.toast(f"⚡ PREDICTIVE: {entity_id} will breach zone in ~5 seconds!", icon="⚡")
+                                            st.session_state.last_predictive_time = time.time()
+                                        break
+
+                # ── Step 10d: Weapon Alert Overlay ──
+                if weapon_detection_enabled:
+                    weapon_dets = detector.get_weapons(detections)
+                    if weapon_dets:
+                        display_frame = draw_weapon_alert(display_frame, weapon_dets)
+
+                # Night mode indicator
+                if is_night_mode:
+                    display_frame = draw_night_mode_indicator(display_frame)
+
+                # FPS calculation
+                st.session_state.fps_frame_count += 1
+                elapsed = time.time() - st.session_state.last_fps_time
+                if elapsed >= 1.0:
+                    st.session_state.fps = st.session_state.fps_frame_count / elapsed
+                    st.session_state.fps_frame_count = 0
+                    st.session_state.last_fps_time = time.time()
+
+                display_frame = draw_fps(display_frame, st.session_state.fps)
+
+                # ── Step 10e: Audio Alert (browser beep) ──
+                if audio_alerts_enabled and entities:
+                    max_e = max(entities.values(), key=lambda e: e.threat_score)
+                    if max_e.threat_score >= 80:
+                        if 'last_audio_time' not in st.session_state:
+                            st.session_state.last_audio_time = 0
+                        if time.time() - st.session_state.last_audio_time > 10:
+                            st.toast("🔊 AUDIO ALERT: Critical threat detected!", icon="🔊")
+                            st.session_state.last_audio_time = time.time()
+
+                # ── Step 11: Update Dashboard (Smooth 30 FPS, Zero Blinking) ──
+                if render_this_frame:
+                    # Check for critical threat to display Drone Intercept HUD as seamless PiP overlay
+                    if entities:
+                        max_e = max(entities.values(), key=lambda e: e.threat_score)
+                        if max_e.threat_score >= 80: # Critical threat
+                            from ui.drone_hud import generate_drone_hud_frame
+                            hud_pip = generate_drone_hud_frame(frame, max_e.bbox, target_w=150, target_h=120)
+                            if hud_pip is not None:
+                                h_pip, w_pip = hud_pip.shape[:2]
+                                display_frame[10:10+h_pip, -10-w_pip:-10] = hud_pip
+
+                    # Single unified image feed — never swaps containers or causes DOM flickering
+                    display_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
+                    video_placeholder.image(display_rgb, channels="RGB", use_container_width=True)
+
+                    now_t = time.time()
+
+                    # Status bar (throttled to 1.5s to prevent metrics tearing / strobe effect)
+                    if 'last_status_update' not in st.session_state:
+                        st.session_state.last_status_update = 0.0
+
+                    if now_t - st.session_state.last_status_update >= 1.5:
+                        st.session_state.last_status_update = now_t
+                        with status_placeholder.container():
+                            render_status_bar(
+                                is_active=True,
+                                fps=st.session_state.fps,
+                                total_entities=tracker.total_tracked,
+                                active_entities=tracker.active_count,
+                                total_alerts=event_store.get_event_count(),
+                                is_night_mode=is_night_mode,
+                                video_source=str(video_source),
+                            )
+
+                    # Profile card and Alert log update (Throttled to 2.5s for calm, readable UI)
+                    if 'last_dashboard_update' not in st.session_state:
+                        st.session_state.last_dashboard_update = 0.0
+
+                    if now_t - st.session_state.last_dashboard_update >= 2.5:
+                        st.session_state.last_dashboard_update = now_t
+
+                        # Profile card for highest-threat entity
+                        with profile_placeholder.container():
+                            if entities:
+                                max_entity = max(entities.values(), key=lambda e: e.threat_score)
+                                if max_entity.threat_score > 0:
+                                    threat_for_profile = threat_scorer.calculate(
+                                        entity_type=1 if max_entity.class_name in ["car", "motorcycle", "truck", "bus"] else 0,
+                                        is_in_zone=max_entity.is_in_zone,
+                                        loitering_duration=max_entity.duration_in_zone,
+                                        persons_in_zone=persons_in_zone,
+                                        posture=max_entity.posture or "standing",
+                                        is_night_mode=is_night_mode,
+                                        has_readable_plate=1 if (max_entity.vehicle_plate and max_entity.vehicle_plate != "UNREADABLE") else 0,
+                                        is_unauthorized_plate=1 if getattr(max_entity, 'is_unauthorized_plate', False) else 0,
+                                    )
+                                    profile = profiler.build_profile(
+                                        max_entity, frame, threat_for_profile
+                                    )
+                                    profile.zone_name = config.get("zone_name", "")
+                                    render_profile_card(profile)
+
+                        # Alert log + AI Narrative
+                        with alert_placeholder.container():
+                            # AI Narrative for highest threat entity
+                            if narrative_enabled and entities:
+                                max_entity = max(entities.values(), key=lambda e: e.threat_score)
+                                if max_entity.threat_score > 10:
+                                    narrative = generate_narrative(
+                                        entity_id=max_entity.entity_id,
+                                        entity_type=max_entity.class_name,
+                                        zone_name=config.get("zone_name", "Restricted Area"),
+                                        threat_score=max_entity.threat_score,
+                                        threat_level="critical" if max_entity.threat_score >= 80 else "high" if max_entity.threat_score >= 60 else "medium" if max_entity.threat_score >= 30 else "low",
+                                        behavior_tags=max_entity.behavior_tags,
+                                        posture=max_entity.posture or "standing",
+                                        loitering_duration=max_entity.duration_in_zone,
+                                        is_night_mode=is_night_mode,
+                                        vehicle_plate=max_entity.vehicle_plate or "",
+                                        persons_in_zone=persons_in_zone,
+                                        has_weapon="weapon_detected" in max_entity.behavior_tags,
+                                    )
+                                    st.markdown(
+                                        f'<div style="padding: 10px 14px; background: linear-gradient(135deg, #1a1a2e, #16213e); '
+                                        f'border-radius: 8px; border-left: 4px solid #69F0AE; margin-bottom: 10px; font-size: 13px;">'
+                                        f'<strong style="color: #69F0AE;">🤖 AI Threat Narrative</strong><br>'
+                                        f'<span style="color: #c9d1d9;">{narrative}</span>'
+                                        f'</div>',
+                                        unsafe_allow_html=True,
+                                    )
+
+                            recent_events = event_store.get_recent_events(limit=15)
+                            render_alert_summary(recent_events)
+                            if not incident_workflow_rendered:
+                                render_incident_workflow(recent_events, event_store)
+                                incident_workflow_rendered = True
+                            render_alert_panel(recent_events, max_display=10)
+
+                    # Smooth frame rate pacing (avoids websocket browser overload)
+                    time.sleep(0.03)
+
+            cap.release()
+
+        elif not st.session_state.is_running:
+            # Show idle state
+            with status_placeholder.container():
+                render_status_bar(
+                    is_active=False,
+                    fps=0.0,
+                    total_entities=0,
+                    active_entities=0,
+                    total_alerts=event_store.get_event_count(),
+                )
+
+            with alert_placeholder.container():
+                recent_events = event_store.get_recent_events(limit=15)
+                render_alert_summary(recent_events)
+                render_incident_workflow(recent_events, event_store)
+                render_alert_panel(recent_events, max_display=10)
+
+            source_name = escape(os.path.basename(str(video_source)) if video_source else "No source selected")
+            video_placeholder.markdown(
+                f'''<div class="standby-feed">
+                    <div class="camera-icon">◉</div>
+                    <div class="eyebrow">SURVEILLANCE FEED · STANDBY</div>
+                    <h3>Monitoring is ready to deploy</h3>
+                    <p>Selected source: <strong>{source_name}</strong><br>
+                    Start monitoring to activate detection, tracking, and incident automation.</p>
+                </div>''',
+                unsafe_allow_html=True,
             )
-
-        with alert_placeholder.container():
-            recent_events = event_store.get_recent_events(limit=15)
-            render_alert_summary(recent_events)
-            render_incident_workflow(recent_events, event_store)
-            render_alert_panel(recent_events, max_display=10)
-
-        source_name = escape(os.path.basename(str(video_source)) if video_source else "No source selected")
-        video_placeholder.markdown(
-            f'''<div class="standby-feed">
-                <div class="camera-icon">◉</div>
-                <div class="eyebrow">SURVEILLANCE FEED · STANDBY</div>
-                <h3>Monitoring is ready to deploy</h3>
-                <p>Selected source: <strong>{source_name}</strong><br>
-                Start monitoring to activate detection, tracking, and incident automation.</p>
-            </div>''',
-            unsafe_allow_html=True,
-        )
 
 
 if __name__ == "__main__":

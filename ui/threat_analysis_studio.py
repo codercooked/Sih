@@ -604,7 +604,8 @@ def render_threat_analysis_studio(threat_scorer: ThreatScorer, db_path: str = ".
             horizontal=True,
         )
 
-        with st.spinner("Generating 2D Sensitivity Surface with Ensemble Predictor..."):
+        cache_key = f"surf_cache_{m_type}"
+        if cache_key not in st.session_state:
             grid_size = 12
             fig_surf, ax_surf = plt.subplots(figsize=(7, 4.5), facecolor='#0e1117')
             ax_surf.set_facecolor('#131722')
@@ -665,7 +666,9 @@ def render_threat_analysis_studio(threat_scorer: ThreatScorer, db_path: str = ".
             plt.setp(plt.getp(cbar.ax.axes, 'yticklabels'), color='#cbd5e1')
             ax_surf.tick_params(colors='#94a3b8')
             plt.tight_layout()
-            st.pyplot(fig_surf, use_container_width=True)
+            st.session_state[cache_key] = fig_surf
+
+        st.pyplot(st.session_state[cache_key], use_container_width=True)
 
         st.info("💡 **Operational Insight:** The gradient transition boundary from yellow (30–60) to red (80+) reveals the exact parameter tipping point where automated lethal defense protocols engage.")
 
@@ -703,7 +706,7 @@ def render_threat_analysis_studio(threat_scorer: ThreatScorer, db_path: str = ".
 
                 snap_path = chosen_row.get("snapshot_path", "")
                 if snap_path and os.path.exists(snap_path):
-                    st.image(snap_path, caption=f"Event Snapshot ({selected_event_id})", use_column_width=True)
+                    st.image(snap_path, caption=f"Event Snapshot ({selected_event_id})", use_container_width=True)
 
             with col_det:
                 st.markdown("#### 🔬 Forensic Vector Deconstruction for Selected Event")

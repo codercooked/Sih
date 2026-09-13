@@ -988,45 +988,47 @@ def main():
                         st.toast("🔊 AUDIO ALERT: Critical threat detected!", icon="🔊")
                         st.session_state.last_audio_time = time.time()
 
-            # ── Step 11: Update Dashboard (Throttle for FPS) ──
+            # ── Step 11: Update Dashboard (Smooth 30 FPS, Zero Blinking) ──
             if render_this_frame:
-                # Video feed
-                display_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
-                
-                # Check for critical threat to display Drone HUD
-                drone_hud_b64 = None
+                # Check for critical threat to display Drone Intercept HUD as seamless PiP overlay
                 if entities:
                     max_e = max(entities.values(), key=lambda e: e.threat_score)
                     if max_e.threat_score >= 80: # Critical threat
-                        from ui.drone_hud import generate_drone_hud
-                        drone_hud_b64 = generate_drone_hud(frame, max_e.bbox)
-                
-                if drone_hud_b64:
-                    with video_placeholder.container():
-                        v_col1, v_col2 = st.columns([2, 1])
-                        v_col1.image(display_rgb, channels="RGB", use_container_width=True)
-                        v_col2.markdown(f'<div style="text-align: center;"><img src="data:image/jpeg;base64,{drone_hud_b64}" style="width: 100%; border-radius: 8px; border: 2px solid #ff4444;"><br><strong style="color: #ff4444; font-size: 14px;">DRONE INTERCEPT MODE ACTIVE</strong></div>', unsafe_allow_html=True)
-                else:
-                    video_placeholder.image(display_rgb, channels="RGB", use_container_width=True)
+                        from ui.drone_hud import generate_drone_hud_frame
+                        hud_pip = generate_drone_hud_frame(frame, max_e.bbox, target_w=150, target_h=120)
+                        if hud_pip is not None:
+                            h_pip, w_pip = hud_pip.shape[:2]
+                            display_frame[10:10+h_pip, -10-w_pip:-10] = hud_pip
 
-                # Status bar
-                with status_placeholder.container():
-                    render_status_bar(
-                        is_active=True,
-                        fps=st.session_state.fps,
-                        total_entities=tracker.total_tracked,
-                        active_entities=tracker.active_count,
-                        total_alerts=event_store.get_event_count(),
-                        is_night_mode=is_night_mode,
-                        video_source=str(video_source),
-                    )
+                # Single unified image feed — never swaps containers or causes DOM flickering
+                display_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
+                video_placeholder.image(display_rgb, channels="RGB", use_container_width=True)
 
-                # Profile card and Alert log update (Throttled to 1 FPS for readability)
+                now_t = time.time()
+
+                # Status bar (throttled to 1.5s to prevent metrics tearing / strobe effect)
+                if 'last_status_update' not in st.session_state:
+                    st.session_state.last_status_update = 0.0
+
+                if now_t - st.session_state.last_status_update >= 1.5:
+                    st.session_state.last_status_update = now_t
+                    with status_placeholder.container():
+                        render_status_bar(
+                            is_active=True,
+                            fps=st.session_state.fps,
+                            total_entities=tracker.total_tracked,
+                            active_entities=tracker.active_count,
+                            total_alerts=event_store.get_event_count(),
+                            is_night_mode=is_night_mode,
+                            video_source=str(video_source),
+                        )
+
+                # Profile card and Alert log update (Throttled to 2.5s for calm, readable UI)
                 if 'last_dashboard_update' not in st.session_state:
-                    st.session_state.last_dashboard_update = 0
+                    st.session_state.last_dashboard_update = 0.0
 
-                if time.time() - st.session_state.last_dashboard_update >= 1.0:
-                    st.session_state.last_dashboard_update = time.time()
+                if now_t - st.session_state.last_dashboard_update >= 2.5:
+                    st.session_state.last_dashboard_update = now_t
                     
                     # Profile card for highest-threat entity
                     with profile_placeholder.container():
@@ -1084,6 +1086,9 @@ def main():
                             render_incident_workflow(recent_events, event_store)
                             incident_workflow_rendered = True
                         render_alert_panel(recent_events, max_display=10)
+
+                # Smooth frame rate pacing (avoids websocket browser overload)
+                time.sleep(0.03)
 
         cap.release()
 

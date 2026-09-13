@@ -189,6 +189,7 @@ def init_session_state():
         "last_fps_time": time.time(),
         "fps_frame_count": 0,
         "selected_entity": None,
+        "selected_entity_id": None,
         "last_log_time": {},  # entity_id → last log timestamp
         "max_threat_score": 0,
         "ai_insights_cache": None,
@@ -560,7 +561,7 @@ def main():
 
     with tab_live:
         # Defense Klaxon & Emergency Alert Strobe
-        render_emergency_siren_component(st.session_state.max_threat_score, "critical")
+        render_emergency_siren_component(st.session_state.get("max_threat_score", 0), "critical")
 
         # Health belongs at the top of the workspace, not in the narrow
         # incident rail. This keeps operational metrics legible.
@@ -570,10 +571,11 @@ def main():
 
         with col_panel:
             # Tactical Quick Reaction Team (QRT) Dispatch Control
+            target_id = st.session_state.get("selected_entity_id") or st.session_state.get("selected_entity") or "UNKNOWN-TARGET"
             render_qrt_dispatch_button(
-                entity_id=st.session_state.selected_entity_id or "UNKNOWN-TARGET",
+                entity_id=target_id,
                 sector=config.get("zone_name", "BOP-02 East Perimeter"),
-                threat_score=st.session_state.max_threat_score
+                threat_score=st.session_state.get("max_threat_score", 0)
             )
             render_last_dispatch_modal()
 

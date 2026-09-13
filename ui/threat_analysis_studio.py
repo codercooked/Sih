@@ -16,10 +16,20 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from core.threat_scorer import ThreatScorer, ThreatAssessment
 
-# Tactical Preset Scenarios for Rapid Evaluation
+# Tactical Preset Descriptions for Tooltips and Guidance
+PRESET_DESCRIPTIONS = {
+    "🥷 Covert Night Infiltration": "Crouched stealth crawl under cover of darkness (02:30 AM) inside restricted sector.",
+    "🧗 Perimeter Fence Scaling": "High-urgency breach: subject scaling outer boundary mesh with rapid vertical acceleration.",
+    "🚗 High-Speed Vehicle Ramming": "Unregistered vehicle accelerating rapidly toward border checkpoint barrier at night.",
+    "⚠️ Armed Perimeter Incursion": "Subject carrying visible weapon moving deliberately toward critical tactical zone.",
+    "👥 Coordinated Crowd Decoy Infiltration": "High-density crowd disturbance near perimeter fence with multiple individuals in sector.",
+    "🏳️ Surrendering Defector / Infiltrator": "Subject hands raised in surrender posture, stationary inside boundary buffer zone.",
+    "🌾 Benign Border Civilian / Farmer": "Local farmer walking parallel to outer boundary fence during daylight, fully benign.",
+}
+
+# Tactical Preset Scenarios for Rapid Evaluation (Strictly Feature Telemetry Vectors)
 PRESET_SCENARIOS = {
     "🥷 Covert Night Infiltration": {
-        "description": "Crouched stealth crawl under cover of darkness (02:30 AM) inside restricted sector.",
         "entity_type": 0,
         "is_in_zone": True,
         "loitering_duration": 140.0,
@@ -37,7 +47,6 @@ PRESET_SCENARIOS = {
         "acceleration_magnitude": 0.4,
     },
     "🧗 Perimeter Fence Scaling": {
-        "description": "High-urgency breach: subject scaling outer boundary mesh with rapid vertical acceleration.",
         "entity_type": 0,
         "is_in_zone": False,
         "loitering_duration": 35.0,
@@ -55,7 +64,6 @@ PRESET_SCENARIOS = {
         "acceleration_magnitude": 3.2,
     },
     "🚗 High-Speed Vehicle Ramming": {
-        "description": "Unregistered vehicle accelerating rapidly toward border checkpoint barrier at night.",
         "entity_type": 1,
         "is_in_zone": False,
         "loitering_duration": 10.0,
@@ -75,7 +83,6 @@ PRESET_SCENARIOS = {
         "acceleration_magnitude": 4.1,
     },
     "⚠️ Armed Perimeter Incursion": {
-        "description": "Subject carrying visible weapon moving deliberately toward critical tactical zone.",
         "entity_type": 0,
         "is_in_zone": True,
         "loitering_duration": 65.0,
@@ -93,7 +100,6 @@ PRESET_SCENARIOS = {
         "acceleration_magnitude": 0.8,
     },
     "👥 Coordinated Crowd Decoy Infiltration": {
-        "description": "High-density crowd disturbance near perimeter fence with multiple individuals in sector.",
         "entity_type": 0,
         "is_in_zone": True,
         "loitering_duration": 85.0,
@@ -111,7 +117,6 @@ PRESET_SCENARIOS = {
         "acceleration_magnitude": 1.6,
     },
     "🏳️ Surrendering Defector / Infiltrator": {
-        "description": "Subject hands raised in surrender posture, stationary inside boundary buffer zone.",
         "entity_type": 0,
         "is_in_zone": True,
         "loitering_duration": 45.0,
@@ -129,7 +134,6 @@ PRESET_SCENARIOS = {
         "acceleration_magnitude": 0.0,
     },
     "🌾 Benign Border Civilian / Farmer": {
-        "description": "Local farmer walking parallel to outer boundary fence during daylight, fully benign.",
         "entity_type": 0,
         "is_in_zone": False,
         "loitering_duration": 15.0,
@@ -148,10 +152,17 @@ PRESET_SCENARIOS = {
     },
 }
 
+VALID_THREAT_KEYS = {
+    "entity_type", "is_in_zone", "loitering_duration", "persons_in_zone",
+    "speed_category", "is_moving_toward_zone", "is_night_mode", "posture",
+    "is_erratic", "hour_of_day", "direction_toward_zone", "crowd_density_gradient",
+    "has_weapon", "time_since_last", "has_readable_plate", "is_unauthorized_plate",
+    "distance_to_boundary", "acceleration_magnitude",
+}
 
 def clean_threat_params(params: dict) -> dict:
-    """Removes non-feature metadata such as 'description' before passing to ThreatScorer."""
-    return {k: v for k, v in params.items() if k != "description"}
+    """Safely extracts only known ThreatScorer parameter keys from any dictionary."""
+    return {k: v for k, v in params.items() if k in VALID_THREAT_KEYS}
 
 
 def render_threat_radar_chart(vector_dict: dict, title: str = "Tactical Threat Radar Profile"):
@@ -336,7 +347,7 @@ def render_threat_analysis_studio(threat_scorer: ThreatScorer, db_path: str = ".
         selected_preset = None
         for i, (name, cfg) in enumerate(PRESET_SCENARIOS.items()):
             short_name = name.split(" ")[1] if len(name.split(" ")) > 1 else name
-            if preset_cols[i].button(name.split(" ")[0] + " " + short_name, key=f"btn_pre_{i}", help=cfg["description"], use_container_width=True):
+            if preset_cols[i].button(name.split(" ")[0] + " " + short_name, key=f"btn_pre_{i}", help=PRESET_DESCRIPTIONS.get(name, ""), use_container_width=True):
                 st.session_state["sim_loaded_preset"] = cfg
                 st.rerun()
 

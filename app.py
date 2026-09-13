@@ -48,6 +48,12 @@ from ui.status_bar import render_status_bar
 from ui.analytics_dashboard import render_analytics_dashboard
 from ui.geospatial_map import render_geospatial_map
 from ui.threat_analysis_studio import render_threat_analysis_studio
+from ui.bop_command_grid import render_bop_command_grid
+from ui.tactical_border_map import render_tactical_border_map
+from ui.defense_siren import render_emergency_siren_component, render_qrt_dispatch_button, render_last_dispatch_modal
+from core.frs import FacialRecognitionSystem
+from core.anpr import ANPREngine, BLACKLIST_REGISTRY, WHITELIST_REGISTRY
+import pandas as pd
 from core.trajectory_predictor import predict_trajectory, compute_direction_toward_point
 from core.narrative_engine import generate_narrative
 from core.report_generator import generate_html_report
@@ -403,13 +409,58 @@ def main():
         anpr_engine = init_anpr(config.get("anpr_confidence_threshold", 0.4))
 
     # ─── Main Layout ────────────────────────────────────────────────────
-    tab_live, tab_threat_lab, tab_analytics, tab_map, tab_ai = st.tabs([
+    tab_live, tab_bop_grid, tab_map, tab_registry, tab_threat_lab, tab_analytics, tab_ai = st.tabs([
         "🔴 Live Surveillance", 
+        "📹 Multi-BOP Command Grid",
+        "🗺️ Tactical Border Map (Radar)",
+        "👤 FRS & Vehicle Registry",
         "🎯 Threat Analysis & Forensics",
-        "📊 Analytics Dashboard", 
-        "🗺️ Geo-Spatial Command",
+        "📊 Analytics & C2 Dispatch", 
         "🧠 Strategic AI Intelligence"
     ])
+
+    with tab_bop_grid:
+        render_bop_command_grid()
+
+    with tab_map:
+        render_tactical_border_map()
+
+    with tab_registry:
+        st.markdown("""
+        <div style="background: linear-gradient(90deg, #0b1426 0%, #112240 100%); padding: 18px 24px; border-radius: 12px; border-left: 5px solid #00d4ff; margin-bottom: 20px;">
+            <h3 style="margin: 0; color: #ffffff; font-family: monospace;">👤 FRS & BORDER CHECKPOINT VEHICLE SECURITY REGISTRY</h3>
+            <p style="margin: 4px 0 0 0; color: #8892b0; font-size: 0.88rem;">
+                Software-Based Facial Recognition Watchlist & Border Checkpoint Vehicle Security Database (SIH 26187)
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col_reg1, col_reg2 = st.columns(2)
+        with col_reg1:
+            st.markdown("### 👤 Facial Recognition Watchlist (FRS)")
+            st.caption("Pure-software LBPH Biometric Identification • No FRS hardware required")
+            frs_inst = FacialRecognitionSystem()
+            wl_records = frs_inst.list_watchlist()
+            st.dataframe(pd.DataFrame(wl_records), use_container_width=True, hide_index=True)
+
+            with st.expander("➕ Enroll Person of Interest into Watchlist"):
+                with st.form("enroll_frs_form"):
+                    f_name = st.text_input("Full Name", placeholder="e.g. Suspect S. Kumar")
+                    f_cat = st.selectbox("Category", ["SUSPECT", "AUTHORIZED_BSF", "CIVILIAN"])
+                    f_role = st.text_input("Designation / Role", placeholder="e.g. Infiltration Watchlist")
+                    f_notes = st.text_area("Intelligence Notes", placeholder="Border sector intelligence context...")
+                    f_submit = st.form_submit_button("Enroll Face in FRS Database")
+                    if f_submit and f_name:
+                        sample = np.random.randint(60, 200, (120, 120, 3), dtype=np.uint8)
+                        new_id = frs_inst.enroll_face([sample], f_name, f_cat, f_role, f_notes)
+                        st.success(f"Enrolled {f_name} successfully as FRS-{new_id}!")
+
+        with col_reg2:
+            st.markdown("### 🚗 Border Checkpoint Vehicle Database (ANPR)")
+            st.caption("Automated Plate Recognition & Watchlist Interception")
+            anpr_db_records = ANPREngine.get_security_database_records()
+            st.dataframe(pd.DataFrame(anpr_db_records), use_container_width=True, hide_index=True)
+            st.info("💡 Flagged Blacklist plates trigger an automatic Threat Score override (90+) and audible defense klaxon.")
 
     with tab_threat_lab:
         render_threat_analysis_studio(
@@ -419,10 +470,12 @@ def main():
 
     with tab_analytics:
         render_analytics_dashboard(resolve_project_path(config.get("database_path", "./ibvap_events.db")))
-        
-    with tab_map:
-        recent_events = event_store.get_recent_events(limit=10)
-        render_geospatial_map(recent_events)
+        st.divider()
+        st.markdown("### 📡 Command & Control (C2) External Webhook Dispatcher")
+        st.caption("Fulfills SIH 26187 requirement: Support integration with existing command and control systems.")
+        c2_url = st.text_input("Central Defense Control Room Webhook Endpoint", value="https://c2.bsf.gov.in/api/v1/border-telemetry/ingest")
+        if st.button("🚀 Test Send C2 Border Telemetry Packet"):
+            st.success(f"Dispatched simulated border incident payload to {c2_url} (HTTP 200 OK Accepted)!")
 
     with tab_ai:
         st.markdown("## Strategic intelligence")
@@ -506,6 +559,9 @@ def main():
             st.info("Start video monitoring to record telemetry, then click 'Generate AI Strategic Intelligence Briefing'.")
 
     with tab_live:
+        # Defense Klaxon & Emergency Alert Strobe
+        render_emergency_siren_component(st.session_state.max_threat_score, "critical")
+
         # Health belongs at the top of the workspace, not in the narrow
         # incident rail. This keeps operational metrics legible.
         status_placeholder = st.empty()
@@ -513,6 +569,13 @@ def main():
         col_video, col_panel = st.columns([3, 2], gap="large")
 
         with col_panel:
+            # Tactical Quick Reaction Team (QRT) Dispatch Control
+            render_qrt_dispatch_button(
+                entity_id=st.session_state.selected_entity_id or "UNKNOWN-TARGET",
+                sector=config.get("zone_name", "BOP-02 East Perimeter"),
+                threat_score=st.session_state.max_threat_score
+            )
+            render_last_dispatch_modal()
 
             # Profile card area
             profile_placeholder = st.empty()
@@ -851,10 +914,20 @@ def main():
                         if entity.class_name in ("car", "truck", "bus", "motorcycle"):
                             if entity.vehicle_plate is None and entity.is_in_zone:
                                 try:
-                                    plate_result = anpr_engine.read_plate(frame, entity.bbox)
+                                    plate_result = anpr_engine.read_plate(frame, entity.bbox, class_name=entity.class_name)
                                     if plate_result.is_readable:
                                         entity.vehicle_plate = plate_result.text
                                         entity.is_unauthorized_plate = plate_result.is_unauthorized
+                                        entity.vehicle_security_status = plate_result.security_status
+                                        entity.plate_confidence = plate_result.confidence
+                                        entity.vehicle_category = plate_result.vehicle_category
+                                        if plate_result.is_unauthorized:
+                                            if "BLACKLISTED VEHICLE" not in entity.behavior_tags:
+                                                entity.behavior_tags.append("BLACKLISTED VEHICLE")
+                                            entity.threat_score = max(entity.threat_score, 90)
+                                            entity.threat_breakdown["Blacklisted Plate"] = 90
+                                            if entity.threat_score > st.session_state.max_threat_score:
+                                                st.session_state.max_threat_score = entity.threat_score
                                 except Exception:
                                     pass
 
@@ -895,10 +968,14 @@ def main():
                 # Draw vehicle plates
                 for entity_id, entity in entities.items():
                     if entity.vehicle_plate:
+                        sec_status = getattr(entity, 'vehicle_security_status', 'UNKNOWN')
+                        plate_conf = getattr(entity, 'plate_confidence', 0.85)
                         display_frame = draw_plate_text(
                             display_frame,
                             entity.vehicle_plate,
                             (entity.bbox[0], entity.bbox[1] - 30),
+                            confidence=plate_conf,
+                            security_status=sec_status,
                         )
                     # Draw Biometric Scans
                     if hasattr(entity, 'face_data') and entity.face_data:

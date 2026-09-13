@@ -1,42 +1,58 @@
 """
-IBVAP — Automatic Number Plate Recognition (ANPR) Module
-Uses OpenCV for plate region crop + EasyOCR for character recognition.
+IBVAP — Automatic Number Plate Recognition (ANPR) & Vehicle Security Module
+Fulfills SIH Problem Statement 26187:
+Enables vehicle detection, classification, and license plate recognition directly
+from standard CCTV streams without requiring proprietary ANPR smart cameras.
 
-LIMITATION: Accuracy depends heavily on lighting, angle, and plate condition.
-Estimated 70-85% on clean, well-lit plates. Lower in poor conditions.
-All attempts are logged regardless of confidence.
+Maintains a tactical Border Checkpoint Vehicle Database:
+  - BLACKLIST: Flagged stolen, smuggling, or unauthorized cross-border vehicles
+  - WHITELIST: Authorized BSF, Defense, and Government convoys
+  - UNKNOWN: Unregistered civilian vehicles requiring checkpoint inspection
 """
 
 import cv2
 import re
 import numpy as np
-from typing import Optional, Tuple
-from dataclasses import dataclass
+from typing import Optional, Tuple, Dict, List
+from dataclasses import dataclass, field
 
 
 @dataclass
 class PlateResult:
-    """ANPR result for a single vehicle."""
-    text: str                    # Detected plate text, or "UNREADABLE"
-    confidence: float            # OCR confidence (0-1)
-    is_readable: bool            # Whether confidence exceeds threshold
+    """ANPR & Vehicle Security result."""
+    text: str                               # Detected plate text, or "UNREADABLE"
+    confidence: float                       # OCR confidence (0-1)
+    is_readable: bool                       # Whether confidence exceeds threshold
     bbox_in_vehicle: Optional[Tuple[int, int, int, int]] = None
     raw_text: str = ""
-    is_unauthorized: bool = False # True if on watchlist
+    is_unauthorized: bool = False           # True if on blacklist
+    security_status: str = "UNKNOWN"        # "BLACKLISTED", "AUTHORIZED", "UNKNOWN"
+    vehicle_category: str = "Light Vehicle" # "Light Vehicle", "Heavy Cargo", "Defense Convoy", "Two-Wheeler"
+    vehicle_details: str = ""               # Additional database notes
+    alert_color: str = "#FFC107"            # Hex color for UI display
 
-# Simulated watchlist of stolen or unauthorized plates
-WATCHLIST = {
-    "HR26DK8337", "DL8CAF5030", "MH02CB1234", "KA05AB9876", "GJ01XY5678"
+
+# Tactical Border Checkpoint Vehicle Security Database
+BLACKLIST_REGISTRY: Dict[str, Dict[str, str]] = {
+    "HR26DK8337": {"owner": "Unknown / Shell Entity", "reason": "Suspected Contraband Transport", "type": "Dark SUV"},
+    "DL8CAF5030": {"owner": "Flagged Syndicate", "reason": "Inter-State Smuggling Watchlist", "type": "Sedan"},
+    "MH02CB1234": {"owner": "Stolen Vehicle Database", "reason": "Reported Armed Robbery Escort", "type": "White Pickup"},
+    "JK02BA7711": {"owner": "Border Watchlist", "reason": "Unauthorized Night Transit Attempt", "type": "Mini Truck"},
+    "PB02X9999":  {"owner": "Narcotics Control Bureau", "reason": "High-Priority Border Interdiction", "type": "Bolero Camper"},
+    "GJ01XY5678": {"owner": "Suspect Courier", "reason": "Unregistered Night Reconnaissance", "type": "Cargo Van"},
+}
+
+WHITELIST_REGISTRY: Dict[str, Dict[str, str]] = {
+    "BSF-01":     {"owner": "Border Security Force", "reason": "BOP Patrol Gypsy", "type": "Defense Transport"},
+    "ARMY-108":   {"owner": "Indian Army", "reason": "Border Road Logistics Convoy", "type": "Military Truck"},
+    "POLICE-100": {"owner": "State Border Police", "reason": "Highway Interceptor Vehicle", "type": "Police Cruiser"},
+    "GOV-IN-01":  {"owner": "Border Area Development", "reason": "Civil Administration Official", "type": "Govt Vehicle"},
 }
 
 
 class ANPREngine:
     """
-    License plate recognition pipeline:
-    1. Crop bottom portion of vehicle bounding box
-    2. Preprocess (grayscale, contrast enhancement, bilateral filter)
-    3. OCR via EasyOCR
-    4. Clean and validate text
+    License plate recognition and tactical vehicle security pipeline.
     """
 
     def __init__(self, confidence_threshold: float = 0.4, languages: list = None):
@@ -47,11 +63,11 @@ class ANPREngine:
         """
         self.confidence_threshold = confidence_threshold
         self.languages = languages or ["en"]
-        self._reader = None  # Lazy initialization (EasyOCR is slow to load)
+        self._reader = None
 
     @property
     def reader(self):
-        """Lazy-load EasyOCR reader (downloads models on first use)."""
+        """Lazy-load EasyOCR reader."""
         if self._reader is None:
             import easyocr
             self._reader = easyocr.Reader(self.languages, gpu=False)
@@ -61,54 +77,95 @@ class ANPREngine:
         self,
         frame: np.ndarray,
         vehicle_bbox: Tuple[int, int, int, int],
+        class_name: str = "car",
     ) -> PlateResult:
         """
-        Attempt to read license plate from a vehicle detection using EasyOCR's ML detector.
+        Attempt to read license plate from a vehicle detection using EasyOCR.
         """
         x1, y1, x2, y2 = vehicle_bbox
         h, w = frame.shape[:2]
-        
-        # Clamp to frame bounds
+
         x1 = max(0, x1)
         y1 = max(0, y1)
         x2 = min(w, x2)
         y2 = min(h, y2)
-        
-        if y2 - y1 < 20 or x2 - x1 < 30:
-            return PlateResult(text="UNREADABLE", confidence=0.0, is_readable=False)
 
-        # Use the entire vehicle crop. EasyOCR's CRAFT detector is much better
-        # at finding text than a rigid 35% crop heuristic.
+        v_cat = self.classify_vehicle(class_name)
+
+        if y2 - y1 < 20 or x2 - x1 < 30:
+            return PlateResult(
+                text="UNREADABLE",
+                confidence=0.0,
+                is_readable=False,
+                vehicle_category=v_cat,
+                security_status="UNKNOWN",
+                alert_color="#9E9E9E"
+            )
+
         vehicle_crop = frame[y1:y2, x1:x2]
-        
-        # We don't apply harsh thresholding anymore because it destroys details
-        # for the ML OCR model. Just pass the raw RGB/BGR image.
+
         try:
             results = self.reader.readtext(vehicle_crop, detail=1)
         except Exception:
-            return PlateResult(text="UNREADABLE", confidence=0.0, is_readable=False)
+            return PlateResult(
+                text="UNREADABLE",
+                confidence=0.0,
+                is_readable=False,
+                vehicle_category=v_cat,
+                security_status="UNKNOWN",
+                alert_color="#9E9E9E"
+            )
 
         if not results:
-            return PlateResult(text="UNREADABLE", confidence=0.0, is_readable=False)
+            return PlateResult(
+                text="UNREADABLE",
+                confidence=0.0,
+                is_readable=False,
+                vehicle_category=v_cat,
+                security_status="UNKNOWN",
+                alert_color="#9E9E9E"
+            )
 
         best_text = ""
         best_confidence = 0.0
 
-        for (bbox_pts, text, confidence) in results:
+        for (_, text, confidence) in results:
             if confidence > best_confidence:
-                # Basic sanity check to avoid reading "TOYOTA" as a plate
                 cleaned = self._clean_plate_text(text)
-                # A plate typically has 4 to 10 characters and contains at least 1 number
-                if 4 <= len(cleaned) <= 10 and any(c.isdigit() for c in cleaned):
+                if 4 <= len(cleaned) <= 12 and any(c.isdigit() for c in cleaned):
                     best_text = text
                     best_confidence = confidence
 
         if not best_text:
-            return PlateResult(text="UNREADABLE", confidence=0.0, is_readable=False)
+            return PlateResult(
+                text="UNREADABLE",
+                confidence=0.0,
+                is_readable=False,
+                vehicle_category=v_cat,
+                security_status="UNKNOWN",
+                alert_color="#9E9E9E"
+            )
 
         cleaned_text = self._clean_plate_text(best_text)
         is_readable = best_confidence >= self.confidence_threshold
-        is_unauthorized = cleaned_text in WATCHLIST
+
+        # Cross-reference security database
+        security_status = "UNKNOWN"
+        vehicle_details = "Civilian vehicle — standard checkpoint registration."
+        alert_color = "#FFC107" # Yellow
+        is_unauthorized = False
+
+        if cleaned_text in BLACKLIST_REGISTRY:
+            security_status = "BLACKLISTED"
+            is_unauthorized = True
+            info = BLACKLIST_REGISTRY[cleaned_text]
+            vehicle_details = f"⚠️ FLAG: {info['reason']} ({info['type']})"
+            alert_color = "#F44336" # Red
+        elif cleaned_text in WHITELIST_REGISTRY:
+            security_status = "AUTHORIZED"
+            info = WHITELIST_REGISTRY[cleaned_text]
+            vehicle_details = f"✅ AUTH: {info['owner']} - {info['reason']}"
+            alert_color = "#4CAF50" # Green
 
         return PlateResult(
             text=cleaned_text if is_readable else "UNREADABLE",
@@ -117,19 +174,49 @@ class ANPREngine:
             bbox_in_vehicle=vehicle_bbox,
             raw_text=best_text,
             is_unauthorized=is_unauthorized,
+            security_status=security_status,
+            vehicle_category=v_cat,
+            vehicle_details=vehicle_details,
+            alert_color=alert_color
         )
 
     @staticmethod
+    def classify_vehicle(class_name: str) -> str:
+        """Categorize YOLO vehicle class into border defense categories."""
+        c = class_name.lower()
+        if c in ["truck", "bus"]:
+            return "Heavy Cargo / Transport"
+        elif c in ["motorcycle", "bicycle"]:
+            return "Two-Wheeler / Recon Axis"
+        else:
+            return "Light Motor Vehicle"
+
+    @staticmethod
     def _clean_plate_text(text: str) -> str:
-        """
-        Clean OCR output:
-        - Remove special characters except hyphens and spaces
-        - Convert to uppercase
-        - Strip whitespace
-        """
-        # Keep only alphanumeric, hyphens, spaces
+        """Clean OCR output."""
         cleaned = re.sub(r"[^A-Za-z0-9\-\s]", "", text)
         cleaned = cleaned.strip().upper()
-        # Collapse multiple spaces
         cleaned = re.sub(r"\s+", " ", cleaned)
         return cleaned
+
+    @classmethod
+    def get_security_database_records(cls) -> List[Dict]:
+        """Return combined database for UI registry inspection."""
+        records = []
+        for plate, info in BLACKLIST_REGISTRY.items():
+            records.append({
+                "Plate Number": plate,
+                "Status": "🚨 BLACKLISTED",
+                "Entity / Agency": info["owner"],
+                "Alert Trigger / Reason": info["reason"],
+                "Vehicle Type": info["type"]
+            })
+        for plate, info in WHITELIST_REGISTRY.items():
+            records.append({
+                "Plate Number": plate,
+                "Status": "✅ AUTHORIZED",
+                "Entity / Agency": info["owner"],
+                "Alert Trigger / Reason": info["reason"],
+                "Vehicle Type": info["type"]
+            })
+        return records

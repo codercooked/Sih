@@ -204,21 +204,33 @@ def draw_plate_text(
     text: str,
     position: Tuple[int, int],
     confidence: float = 0.0,
+    security_status: str = "UNKNOWN",
 ) -> np.ndarray:
-    """Draw ANPR plate text near the vehicle."""
+    """Draw ANPR plate text near the vehicle with security status badge."""
     annotated = frame.copy()
     if not text or text == "UNREADABLE":
         return annotated
 
-    label = f"PLATE: {text} ({confidence:.0%})"
-    x, y = position
-    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+    if security_status == "BLACKLISTED":
+        label = f"🚨 BLACKLIST: {text} ({confidence:.0%})"
+        bg_color = (0, 0, 255) # Red
+        text_color = (255, 255, 255)
+    elif security_status == "AUTHORIZED":
+        label = f"✅ AUTH DEFENSE: {text} ({confidence:.0%})"
+        bg_color = (0, 180, 50) # Green
+        text_color = (255, 255, 255)
+    else:
+        label = f"PLATE: {text} ({confidence:.0%})"
+        bg_color = (0, 200, 255) # Yellow
+        text_color = (0, 0, 0)
 
-    # Yellow background
-    cv2.rectangle(annotated, (x, y - th - 8), (x + tw + 10, y + 4), (0, 200, 255), -1)
+    x, y = position
+    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
+
+    cv2.rectangle(annotated, (x, y - th - 8), (x + tw + 10, y + 4), bg_color, -1)
     cv2.putText(
         annotated, label, (x + 5, y - 2),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2, cv2.LINE_AA,
+        cv2.FONT_HERSHEY_SIMPLEX, 0.55, text_color, 2, cv2.LINE_AA,
     )
 
     return annotated

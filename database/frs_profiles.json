@@ -1,0 +1,44 @@
+{
+  "101": {
+    "name": "Tariq Mahmood",
+    "category": "SUSPECT",
+    "role": "High-Risk Border Infiltrator",
+    "notes": "Flagged on IB Western Sector alert list.",
+    "color_hex": "#F44336"
+  },
+  "102": {
+    "name": "Vikram Rawat",
+    "category": "SUSPECT",
+    "role": "Cross-Border Contraband Courier",
+    "notes": "History of unauthorized perimeter breaches.",
+    "color_hex": "#F44336"
+  },
+  "201": {
+    "name": "Ct. Rajesh Sharma",
+    "category": "AUTHORIZED_BSF",
+    "role": "BSF Sentry Patrol Alpha",
+    "notes": "Assigned to BOP-01 North Gate perimeter.",
+    "color_hex": "#4CAF50"
+  },
+  "202": {
+    "name": "Insp. Amarjit Singh",
+    "category": "AUTHORIZED_BSF",
+    "role": "BOP Commander / Duty Officer",
+    "notes": "Sector Command Officer.",
+    "color_hex": "#4CAF50"
+  },
+  "203": {
+    "name": "Test Infiltrator X",
+    "category": "SUSPECT",
+    "role": "Perimeter Breach Suspect",
+    "notes": "Test enrollment",
+    "color_hex": "#F44336"
+  },
+  "204": {
+    "name": "Test Infiltrator X",
+    "category": "SUSPECT",
+    "role": "Perimeter Breach Suspect",
+    "notes": "Test enrollment",
+    "color_hex": "#F44336"
+  }
+}

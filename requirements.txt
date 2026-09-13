@@ -8,3 +8,4 @@ joblib
 numpy
 pandas
 Pillow
+plotly>=5.0

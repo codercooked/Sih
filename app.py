@@ -604,7 +604,8 @@ def main():
                 # ── Step 2: Object Detection (Continuous & Persistent) ──
                 # Run YOLO inference every 2 frames for maximum FPS, but keep detections
                 # persistently active across every frame so bounding boxes never disappear!
-                if st.session_state.frame_count % 2 == 0 or not last_detections:
+                inference_this_frame = (st.session_state.frame_count % 2 == 0)
+                if inference_this_frame or not last_detections:
                     last_detections = detector.detect(frame)
                 detections = last_detections
                 person_detections = detector.get_persons(detections)

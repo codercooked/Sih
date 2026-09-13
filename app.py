@@ -598,31 +598,13 @@ def main():
 
                 st.session_state.frame_count += 1
 
-                # Render the lightweight preview more often than the analytics
-                # pipeline so the operator feed stays responsive.
-                render_this_frame = (st.session_state.frame_count % 2 == 0)
-                inference_this_frame = st.session_state.frame_count % 4 == 0
-
-                # Fast display path: between analytics frames, do not run the
-                # tracker, zone logic, pose model, heatmap, or event pipeline.
-                # This is the key latency fix for CPU-only local playback.
-                if not inference_this_frame:
-                    if render_this_frame:
-                        video_placeholder.image(
-                            cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),
-                            channels="RGB",
-                            use_container_width=True,
-                        )
-                    continue
-
                 # ── Step 1: Night Enhancement ──
                 frame, is_night_mode = night_enhancer.enhance(frame)
 
-                # ── Step 2: Object Detection ──
-                # YOLO inference is the most expensive operation in the local
-                # CPU pipeline. Reuse the latest detections on alternate frames
-                # so the preview remains fluid while tracking continues.
-                if inference_this_frame or not last_detections:
+                # ── Step 2: Object Detection (Continuous & Persistent) ──
+                # Run YOLO inference every 2 frames for maximum FPS, but keep detections
+                # persistently active across every frame so bounding boxes never disappear!
+                if st.session_state.frame_count % 2 == 0 or not last_detections:
                     last_detections = detector.detect(frame)
                 detections = last_detections
                 person_detections = detector.get_persons(detections)
@@ -989,106 +971,105 @@ def main():
                             st.session_state.last_audio_time = time.time()
 
                 # ── Step 11: Update Dashboard (Smooth 30 FPS, Zero Blinking) ──
-                if render_this_frame:
-                    # Check for critical threat to display Drone Intercept HUD as seamless PiP overlay
-                    if entities:
-                        max_e = max(entities.values(), key=lambda e: e.threat_score)
-                        if max_e.threat_score >= 80: # Critical threat
-                            from ui.drone_hud import generate_drone_hud_frame
-                            hud_pip = generate_drone_hud_frame(frame, max_e.bbox, target_w=150, target_h=120)
-                            if hud_pip is not None:
-                                h_pip, w_pip = hud_pip.shape[:2]
-                                display_frame[10:10+h_pip, -10-w_pip:-10] = hud_pip
+                # Check for critical threat to display Drone Intercept HUD as seamless PiP overlay
+                if entities:
+                    max_e = max(entities.values(), key=lambda e: e.threat_score)
+                    if max_e.threat_score >= 80: # Critical threat
+                        from ui.drone_hud import generate_drone_hud_frame
+                        hud_pip = generate_drone_hud_frame(frame, max_e.bbox, target_w=150, target_h=120)
+                        if hud_pip is not None:
+                            h_pip, w_pip = hud_pip.shape[:2]
+                            display_frame[10:10+h_pip, -10-w_pip:-10] = hud_pip
 
-                    # Single unified image feed — never swaps containers or causes DOM flickering
-                    display_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
-                    video_placeholder.image(display_rgb, channels="RGB", use_container_width=True)
+                # Single unified image feed — never swaps containers or causes DOM flickering
+                display_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
+                video_placeholder.image(display_rgb, channels="RGB", use_container_width=True)
 
-                    now_t = time.time()
+                now_t = time.time()
 
-                    # Status bar (throttled to 1.5s to prevent metrics tearing / strobe effect)
-                    if 'last_status_update' not in st.session_state:
-                        st.session_state.last_status_update = 0.0
+                # Status bar (throttled to 1.5s to prevent metrics tearing / strobe effect)
+                if 'last_status_update' not in st.session_state:
+                    st.session_state.last_status_update = 0.0
 
-                    if now_t - st.session_state.last_status_update >= 1.5:
-                        st.session_state.last_status_update = now_t
-                        with status_placeholder.container():
-                            render_status_bar(
-                                is_active=True,
-                                fps=st.session_state.fps,
-                                total_entities=tracker.total_tracked,
-                                active_entities=tracker.active_count,
-                                total_alerts=event_store.get_event_count(),
-                                is_night_mode=is_night_mode,
-                                video_source=str(video_source),
-                            )
+                if now_t - st.session_state.last_status_update >= 1.5:
+                    st.session_state.last_status_update = now_t
+                    with status_placeholder.container():
+                        render_status_bar(
+                            is_active=True,
+                            fps=st.session_state.fps,
+                            total_entities=tracker.total_tracked,
+                            active_entities=tracker.active_count,
+                            total_alerts=event_store.get_event_count(),
+                            is_night_mode=is_night_mode,
+                            video_source=str(video_source),
+                        )
 
-                    # Profile card and Alert log update (Throttled to 2.5s for calm, readable UI)
-                    if 'last_dashboard_update' not in st.session_state:
-                        st.session_state.last_dashboard_update = 0.0
+                # Profile card and Alert log update (Throttled to 2.5s for calm, readable UI)
+                if 'last_dashboard_update' not in st.session_state:
+                    st.session_state.last_dashboard_update = 0.0
 
-                    if now_t - st.session_state.last_dashboard_update >= 2.5:
-                        st.session_state.last_dashboard_update = now_t
+                if now_t - st.session_state.last_dashboard_update >= 2.5:
+                    st.session_state.last_dashboard_update = now_t
 
-                        # Profile card for highest-threat entity
-                        with profile_placeholder.container():
-                            if entities:
-                                max_entity = max(entities.values(), key=lambda e: e.threat_score)
-                                if max_entity.threat_score > 0:
-                                    threat_for_profile = threat_scorer.calculate(
-                                        entity_type=1 if max_entity.class_name in ["car", "motorcycle", "truck", "bus"] else 0,
-                                        is_in_zone=max_entity.is_in_zone,
-                                        loitering_duration=max_entity.duration_in_zone,
-                                        persons_in_zone=persons_in_zone,
-                                        posture=max_entity.posture or "standing",
-                                        is_night_mode=is_night_mode,
-                                        has_readable_plate=1 if (max_entity.vehicle_plate and max_entity.vehicle_plate != "UNREADABLE") else 0,
-                                        is_unauthorized_plate=1 if getattr(max_entity, 'is_unauthorized_plate', False) else 0,
-                                    )
-                                    profile = profiler.build_profile(
-                                        max_entity, frame, threat_for_profile
-                                    )
-                                    profile.zone_name = config.get("zone_name", "")
-                                    render_profile_card(profile)
+                    # Profile card for highest-threat entity
+                    with profile_placeholder.container():
+                        if entities:
+                            max_entity = max(entities.values(), key=lambda e: e.threat_score)
+                            if max_entity.threat_score > 0:
+                                threat_for_profile = threat_scorer.calculate(
+                                    entity_type=1 if max_entity.class_name in ["car", "motorcycle", "truck", "bus"] else 0,
+                                    is_in_zone=max_entity.is_in_zone,
+                                    loitering_duration=max_entity.duration_in_zone,
+                                    persons_in_zone=persons_in_zone,
+                                    posture=max_entity.posture or "standing",
+                                    is_night_mode=is_night_mode,
+                                    has_readable_plate=1 if (max_entity.vehicle_plate and max_entity.vehicle_plate != "UNREADABLE") else 0,
+                                    is_unauthorized_plate=1 if getattr(max_entity, 'is_unauthorized_plate', False) else 0,
+                                )
+                                profile = profiler.build_profile(
+                                    max_entity, frame, threat_for_profile
+                                )
+                                profile.zone_name = config.get("zone_name", "")
+                                render_profile_card(profile)
 
-                        # Alert log + AI Narrative
-                        with alert_placeholder.container():
-                            # AI Narrative for highest threat entity
-                            if narrative_enabled and entities:
-                                max_entity = max(entities.values(), key=lambda e: e.threat_score)
-                                if max_entity.threat_score > 10:
-                                    narrative = generate_narrative(
-                                        entity_id=max_entity.entity_id,
-                                        entity_type=max_entity.class_name,
-                                        zone_name=config.get("zone_name", "Restricted Area"),
-                                        threat_score=max_entity.threat_score,
-                                        threat_level="critical" if max_entity.threat_score >= 80 else "high" if max_entity.threat_score >= 60 else "medium" if max_entity.threat_score >= 30 else "low",
-                                        behavior_tags=max_entity.behavior_tags,
-                                        posture=max_entity.posture or "standing",
-                                        loitering_duration=max_entity.duration_in_zone,
-                                        is_night_mode=is_night_mode,
-                                        vehicle_plate=max_entity.vehicle_plate or "",
-                                        persons_in_zone=persons_in_zone,
-                                        has_weapon="weapon_detected" in max_entity.behavior_tags,
-                                    )
-                                    st.markdown(
-                                        f'<div style="padding: 10px 14px; background: linear-gradient(135deg, #1a1a2e, #16213e); '
-                                        f'border-radius: 8px; border-left: 4px solid #69F0AE; margin-bottom: 10px; font-size: 13px;">'
-                                        f'<strong style="color: #69F0AE;">🤖 AI Threat Narrative</strong><br>'
-                                        f'<span style="color: #c9d1d9;">{narrative}</span>'
-                                        f'</div>',
-                                        unsafe_allow_html=True,
-                                    )
+                    # Alert log + AI Narrative
+                    with alert_placeholder.container():
+                        # AI Narrative for highest threat entity
+                        if narrative_enabled and entities:
+                            max_entity = max(entities.values(), key=lambda e: e.threat_score)
+                            if max_entity.threat_score > 10:
+                                narrative = generate_narrative(
+                                    entity_id=max_entity.entity_id,
+                                    entity_type=max_entity.class_name,
+                                    zone_name=config.get("zone_name", "Restricted Area"),
+                                    threat_score=max_entity.threat_score,
+                                    threat_level="critical" if max_entity.threat_score >= 80 else "high" if max_entity.threat_score >= 60 else "medium" if max_entity.threat_score >= 30 else "low",
+                                    behavior_tags=max_entity.behavior_tags,
+                                    posture=max_entity.posture or "standing",
+                                    loitering_duration=max_entity.duration_in_zone,
+                                    is_night_mode=is_night_mode,
+                                    vehicle_plate=max_entity.vehicle_plate or "",
+                                    persons_in_zone=persons_in_zone,
+                                    has_weapon="weapon_detected" in max_entity.behavior_tags,
+                                )
+                                st.markdown(
+                                    f'<div style="padding: 10px 14px; background: linear-gradient(135deg, #1a1a2e, #16213e); '
+                                    f'border-radius: 8px; border-left: 4px solid #69F0AE; margin-bottom: 10px; font-size: 13px;">'
+                                    f'<strong style="color: #69F0AE;">🤖 AI Threat Narrative</strong><br>'
+                                    f'<span style="color: #c9d1d9;">{narrative}</span>'
+                                    f'</div>',
+                                    unsafe_allow_html=True,
+                                )
 
-                            recent_events = event_store.get_recent_events(limit=15)
-                            render_alert_summary(recent_events)
-                            if not incident_workflow_rendered:
-                                render_incident_workflow(recent_events, event_store)
-                                incident_workflow_rendered = True
-                            render_alert_panel(recent_events, max_display=10)
+                        recent_events = event_store.get_recent_events(limit=15)
+                        render_alert_summary(recent_events)
+                        if not incident_workflow_rendered:
+                            render_incident_workflow(recent_events, event_store)
+                            incident_workflow_rendered = True
+                        render_alert_panel(recent_events, max_display=10)
 
-                    # Smooth frame rate pacing (avoids websocket browser overload)
-                    time.sleep(0.03)
+                # Smooth frame rate pacing (avoids websocket browser overload)
+                time.sleep(0.03)
 
             cap.release()
 

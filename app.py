@@ -222,7 +222,7 @@ def main():
         if source_type == "Sample Video":
             sample_dir = os.path.join(os.path.dirname(__file__), "sample_videos")
             if os.path.exists(sample_dir):
-                samples = [f for f in os.listdir(sample_dir) if f.endswith(('.mp4', '.avi'))]
+                samples = sorted([f for f in os.listdir(sample_dir) if f.endswith(('.mp4', '.avi'))])
                 if samples:
                     selected_sample = st.selectbox("Select Sample", samples)
                     video_source = os.path.join(sample_dir, selected_sample)

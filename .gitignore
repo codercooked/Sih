@@ -17,7 +17,12 @@ Thumbs.db
 *.avi
 *.mov
 *.mkv
+# Keep sample testing videos tracked
+!sample_videos/*.mp4
+!sample_videos/*.avi
 *.log
+alerts/
+*.zip
 .idea/
 .vscode/
 *.egg-info/

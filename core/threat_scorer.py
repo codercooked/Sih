@@ -265,7 +265,6 @@ class ThreatScorer:
                                 "points": pts,
                                 "pct": pct,
                             })
-                            breakdown.append((f"🧠 {label}", pts))
                     except Exception:
                         pass
 

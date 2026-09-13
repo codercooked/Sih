@@ -47,6 +47,7 @@ from ui.profile_card import render_profile_card, render_mini_profile
 from ui.status_bar import render_status_bar
 from ui.analytics_dashboard import render_analytics_dashboard
 from ui.geospatial_map import render_geospatial_map
+from ui.threat_analysis_studio import render_threat_analysis_studio
 from core.trajectory_predictor import predict_trajectory, compute_direction_toward_point
 from core.narrative_engine import generate_narrative
 from core.report_generator import generate_html_report
@@ -402,12 +403,19 @@ def main():
         anpr_engine = init_anpr(config.get("anpr_confidence_threshold", 0.4))
 
     # ─── Main Layout ────────────────────────────────────────────────────
-    tab_live, tab_analytics, tab_map, tab_ai = st.tabs([
-        "Live",
-        "Analytics",
-        "Map",
-        "Intelligence"
+    tab_live, tab_threat_lab, tab_analytics, tab_map, tab_ai = st.tabs([
+        "🔴 Live Surveillance", 
+        "🎯 Threat Analysis & Forensics",
+        "📊 Analytics Dashboard", 
+        "🗺️ Geo-Spatial Command",
+        "🧠 Strategic AI Intelligence"
     ])
+
+    with tab_threat_lab:
+        render_threat_analysis_studio(
+            threat_scorer=threat_scorer,
+            db_path=resolve_project_path(config.get("database_path", "./ibvap_events.db"))
+        )
 
     with tab_analytics:
         render_analytics_dashboard(resolve_project_path(config.get("database_path", "./ibvap_events.db")))

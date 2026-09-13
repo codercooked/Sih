@@ -154,6 +154,7 @@ class ThreatScorer:
         is_unauthorized_plate: int = 0,
         distance_to_boundary: float = 0.0,
         acceleration_magnitude: float = 0.0,
+        **kwargs,
     ) -> ThreatAssessment:
         breakdown = []
         xai_factors = []

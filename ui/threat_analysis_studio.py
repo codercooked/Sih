@@ -149,6 +149,11 @@ PRESET_SCENARIOS = {
 }
 
 
+def clean_threat_params(params: dict) -> dict:
+    """Removes non-feature metadata such as 'description' before passing to ThreatScorer."""
+    return {k: v for k, v in params.items() if k != "description"}
+
+
 def render_threat_radar_chart(vector_dict: dict, title: str = "Tactical Threat Radar Profile"):
     """Renders an aesthetic military radar (spider) chart on dark canvas."""
     categories = list(vector_dict.keys())
@@ -527,7 +532,7 @@ def render_threat_analysis_studio(threat_scorer: ThreatScorer, db_path: str = ".
             loiter_a = st.slider("Loitering Time A (sec)", 0, 300, int(cfg_a["loitering_duration"]), key="sl_l_a")
             cfg_a["loitering_duration"] = loiter_a
 
-            res_a = threat_scorer.calculate(**cfg_a)
+            res_a = threat_scorer.calculate(**clean_threat_params(cfg_a))
             st.metric("Scenario A Threat Score", f"{res_a.score}/100", delta=res_a.level.upper())
 
         with sc2:
@@ -541,7 +546,7 @@ def render_threat_analysis_studio(threat_scorer: ThreatScorer, db_path: str = ".
             loiter_b = st.slider("Loitering Time B (sec)", 0, 300, int(cfg_b["loitering_duration"]), key="sl_l_b")
             cfg_b["loitering_duration"] = loiter_b
 
-            res_b = threat_scorer.calculate(**cfg_b)
+            res_b = threat_scorer.calculate(**clean_threat_params(cfg_b))
             st.metric("Scenario B Threat Score", f"{res_b.score}/100", delta=res_b.level.upper())
 
         # Differential Delta Analysis
@@ -559,8 +564,8 @@ def render_threat_analysis_studio(threat_scorer: ThreatScorer, db_path: str = ".
                 st.info("ℹ️ Scenarios have comparable tactical risk severity.")
 
         with d_col2:
-            vec_a = calculate_tactical_vectors(cfg_a, res_a.score)
-            vec_b = calculate_tactical_vectors(cfg_b, res_b.score)
+            vec_a = calculate_tactical_vectors(clean_threat_params(cfg_a), res_a.score)
+            vec_b = calculate_tactical_vectors(clean_threat_params(cfg_b), res_b.score)
             comp_data = []
             for k in vec_a.keys():
                 comp_data.append({
@@ -599,7 +604,7 @@ def render_threat_analysis_studio(threat_scorer: ThreatScorer, db_path: str = ".
                 Z = np.zeros((grid_size, grid_size))
                 for i, y in enumerate(y_vals):
                     for j, x in enumerate(x_vals):
-                        eval_p = dict(PRESET_SCENARIOS["🥷 Covert Night Infiltration"])
+                        eval_p = clean_threat_params(PRESET_SCENARIOS["🥷 Covert Night Infiltration"])
                         eval_p["distance_to_boundary"] = float(x)
                         eval_p["is_in_zone"] = True if x < 0.2 else False
                         eval_p["loitering_duration"] = float(y)
@@ -616,7 +621,7 @@ def render_threat_analysis_studio(threat_scorer: ThreatScorer, db_path: str = ".
                 Z = np.zeros((grid_size, grid_size))
                 for i, y in enumerate(y_vals):
                     for j, x in enumerate(x_vals):
-                        eval_p = dict(PRESET_SCENARIOS["🧗 Perimeter Fence Scaling"])
+                        eval_p = clean_threat_params(PRESET_SCENARIOS["🧗 Perimeter Fence Scaling"])
                         eval_p["hour_of_day"] = int(x)
                         eval_p["is_night_mode"] = True if (x < 6 or x > 20) else False
                         eval_p["acceleration_magnitude"] = float(y)
@@ -633,7 +638,7 @@ def render_threat_analysis_studio(threat_scorer: ThreatScorer, db_path: str = ".
                 Z = np.zeros((grid_size, grid_size))
                 for i, y in enumerate(y_vals):
                     for j, x in enumerate(x_vals):
-                        eval_p = dict(PRESET_SCENARIOS["👥 Coordinated Crowd Decoy Infiltration"])
+                        eval_p = clean_threat_params(PRESET_SCENARIOS["👥 Coordinated Crowd Decoy Infiltration"])
                         eval_p["crowd_density_gradient"] = float(x)
                         eval_p["loitering_duration"] = float(y)
                         Z[i, j] = threat_scorer.calculate(**eval_p).score

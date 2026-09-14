@@ -120,11 +120,11 @@ def _draw_pill_badge(
 
 def draw_detections(frame: np.ndarray, detections: list, tracked_entities: dict = None) -> np.ndarray:
     """
-    Draw clean, tactical C2 targeting reticles and concise non-cluttered pill labels.
+    Draw clean tactical targeting boxes/reticles without floating text or names, keeping video uncluttered.
     """
     annotated = frame.copy()
 
-    # Draw tracked entities with IDs
+    # Draw tracked entities with sleek boxes
     if tracked_entities:
         for entity_id, entity in tracked_entities.items():
             x1, y1, x2, y2 = map(int, entity.bbox)
@@ -140,35 +140,18 @@ def draw_detections(frame: np.ndarray, detections: list, tracked_entities: dict 
             elif entity.class_name in ("car", "truck", "motorcycle", "bus"):
                 color = (255, 178, 50)  # Cyan-Blue
 
-            # Sleek corner reticle (no heavy opaque box blocking the subject)
+            # Sleek corner reticle & subtle box (no names or text cluttering the video)
             _draw_tactical_reticle(annotated, x1, y1, x2, y2, color, corner_len=14, subtle_box=True)
-
-            # Concise Tactical Pill Tag
-            label = f"{entity.entity_id} • {entity.class_name.capitalize()}"
-            if entity.threat_score > 0:
-                label += f" [{entity.threat_score}%]"
-
-            tag_y = max(20, y1 - 4)
-            _draw_pill_badge(annotated, label, x1, tag_y, border_color=color)
-
-            # Compact posture pill (only if unusual posture detected)
-            if entity.posture and entity.posture.lower() not in ("standing", "unknown"):
-                posture_label = f"⚡ {entity.posture.upper()}"
-                posture_color = (0, 0, 240) if entity.posture.lower() in ("crouching", "crawling", "lying") else (0, 140, 255)
-                _draw_pill_badge(annotated, posture_label, x1, min(annotated.shape[0] - 6, y2 + 16), border_color=posture_color, font_scale=0.36)
 
             # Subtle skeleton overlay
             if entity.skeleton:
                 annotated = draw_skeleton(annotated, entity.skeleton)
     else:
-        # Raw detections fallback
+        # Raw detections fallback: sleek boxes only
         for det in detections:
             x1, y1, x2, y2 = map(int, det.bbox)
             color = COLORS.get(det.class_name, (200, 200, 200))
             _draw_tactical_reticle(annotated, x1, y1, x2, y2, color, corner_len=10, subtle_box=True)
-            label = f"{det.class_name} {det.confidence:.0%}"
-            tag_y = max(20, y1 - 4)
-            _draw_pill_badge(annotated, label, x1, tag_y, border_color=color)
 
     return annotated
 

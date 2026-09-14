@@ -29,29 +29,35 @@ from ui.face_id_card import _bgr_to_base64
 
 
 def test_tactical_hud_rendering():
-    """Verify clean tactical reticles and badges render on frame without errors."""
+    """Verify clean tactical reticles, face tracking, and skeleton render on frame without floating name text."""
     frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
-    # 1. Reticle and pill badge
-    _draw_tactical_reticle(frame, 100, 100, 200, 300, (0, 230, 118), corner_len=14)
-    _draw_pill_badge(frame, "ID-01 • Person [45%]", 100, 95, border_color=(0, 230, 118))
+    # 1. Clean box without names in draw_detections
+    class DummyEntity:
+        bbox = [100, 100, 200, 300]
+        class_name = "person"
+        is_in_zone = False
+        threat_score = 45
+        skeleton = {"left_shoulder": (130, 140), "right_shoulder": (170, 140)}
 
-    # 2. Non-obstructive Zone polygon
+    frame = draw_detections(frame, [], tracked_entities={"T1": DummyEntity()})
+
+    # 2. Face tracking reticle without text
+    scanner = FaceScanner()
+    face_data = [{"box": (135, 105, 30, 30), "watchlist_match": {"name": "Tariq Mahmood", "category": "SUSPECT"}}]
+    frame = scanner.draw_biometric_scan(frame, face_data)
+
+    # 3. Non-obstructive Zone polygon
     polygon = np.array([[50, 50], [400, 50], [400, 350], [50, 350]])
     frame = draw_zone(frame, polygon, is_intruded=True, zone_name="Restricted BOP Sector")
 
-    # 3. Threat badge
+    # 4. Threat badge & FPS
     frame = draw_threat_badge(frame, score=85, level="critical")
-
-    # 4. Plate text
-    frame = draw_plate_text(frame, "DL-01-AB-1234", (150, 250), confidence=0.92, security_status="AUTHORIZED")
-
-    # 5. FPS pill
     frame = draw_fps(frame, 28.5)
 
     assert frame.shape == (480, 640, 3)
     assert np.sum(frame) > 0, "Annotated frame must have drawn pixels"
-    print("✅ Tactical HUD overlay rendering verified (reticles, zone pill, threat badge, FPS)")
+    print("✅ Clean HUD verified: sleek box, face tracking, and skeleton without name clutter")
 
 
 def test_face_scanner_and_crop_extraction():

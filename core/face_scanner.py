@@ -104,39 +104,27 @@ class FaceScanner:
             if match:
                 if match.get("category") == "SUSPECT":
                     color = (0, 0, 240) # Crimson Red
-                    badge_label = f"🚨 {match['name']} ({match['match_confidence']})"
                 else:
                     color = (0, 230, 118) # Emerald Green
-                    badge_label = f"✅ {match['name']} ({match['match_confidence']})"
             else:
                 color = (0, 212, 255) # Cyan
-                badge_label = "👤 FRS SCAN"
 
-            # Sleek Corner Brackets (no clunky solid box, leaves face clearly visible)
-            corner_len = max(6, int(min(w, h) * 0.22))
-            thickness = 1
+            # Subtle bounding frame around tracked face (leaves face clear, zero text)
+            cv2.rectangle(frame, (x, y), (x + w, y + h), color, 1, cv2.LINE_AA)
 
+            # Sleek corner brackets
+            corner_len = max(5, int(min(w, h) * 0.25))
             # Top-left
-            cv2.line(frame, (x, y), (x + corner_len, y), color, thickness)
-            cv2.line(frame, (x, y), (x, y + corner_len), color, thickness)
+            cv2.line(frame, (x, y), (x + corner_len, y), color, 2, cv2.LINE_AA)
+            cv2.line(frame, (x, y), (x, y + corner_len), color, 2, cv2.LINE_AA)
             # Top-right
-            cv2.line(frame, (x + w, y), (x + w - corner_len, y), color, thickness)
-            cv2.line(frame, (x + w, y), (x + w, y + corner_len), color, thickness)
+            cv2.line(frame, (x + w, y), (x + w - corner_len, y), color, 2, cv2.LINE_AA)
+            cv2.line(frame, (x + w, y), (x + w, y + corner_len), color, 2, cv2.LINE_AA)
             # Bottom-left
-            cv2.line(frame, (x, y + h), (x + corner_len, y + h), color, thickness)
-            cv2.line(frame, (x, y + h), (x, y + h - corner_len), color, thickness)
+            cv2.line(frame, (x, y + h), (x + corner_len, y + h), color, 2, cv2.LINE_AA)
+            cv2.line(frame, (x, y + h), (x, y + h - corner_len), color, 2, cv2.LINE_AA)
             # Bottom-right
-            cv2.line(frame, (x + w, y + h), (x + w - corner_len, y + h), color, thickness)
-            cv2.line(frame, (x + w, y + h), (x + w, y + h - corner_len), color, thickness)
-
-            # Compact, elegant top tag
-            (tw, th), _ = cv2.getTextSize(badge_label, cv2.FONT_HERSHEY_SIMPLEX, 0.38, 1)
-            tag_x = max(0, x)
-            tag_y = max(th + 4, y - 4)
-
-            # Dark translucent pill background
-            cv2.rectangle(frame, (tag_x, tag_y - th - 4), (tag_x + tw + 8, tag_y + 2), (15, 20, 30), -1)
-            cv2.rectangle(frame, (tag_x, tag_y - th - 4), (tag_x + tw + 8, tag_y + 2), color, 1)
-            cv2.putText(frame, badge_label, (tag_x + 4, tag_y - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 255), 1, cv2.LINE_AA)
+            cv2.line(frame, (x + w, y + h), (x + w - corner_len, y + h), color, 2, cv2.LINE_AA)
+            cv2.line(frame, (x + w, y + h), (x + w, y + h - corner_len), color, 2, cv2.LINE_AA)
 
         return frame

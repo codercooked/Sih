@@ -421,7 +421,7 @@ def main():
     # Lazy-load heavy modules
     pose_analyzer = None
     if pose_enabled:
-        pose_analyzer = init_pose_analyzer(config.get("pose_confidence_threshold", 0.6))
+        pose_analyzer = init_pose_analyzer(config.get("pose_confidence_threshold", 0.35))
 
     anpr_engine = None
     if anpr_enabled:
@@ -818,18 +818,32 @@ def main():
                     if is_erratic and "erratic_movement" not in entity.behavior_tags:
                         entity.behavior_tags.append("erratic_movement")
 
-                    # ── Step 6: Pose Analysis (every 3rd frame for performance) ──
-                    if pose_analyzer and is_person and inference_this_frame:
-                        try:
-                            pose_result = pose_analyzer.analyze(frame, entity.bbox)
-                            if pose_result.confidence >= config.get("pose_confidence_threshold", 0.6):
-                                entity.posture = pose_result.posture
-                                entity.skeleton = pose_result.landmarks
-                                for tag in pose_result.tags:
-                                    if tag not in entity.behavior_tags:
-                                        entity.behavior_tags.append(tag)
-                        except Exception:
-                            pass  # Pose estimation can fail on edge cases
+                    # ── Step 6: Pose Analysis & Lag-Free Tracking ──
+                    if pose_analyzer and is_person:
+                        if inference_this_frame:
+                            try:
+                                prev_lm = getattr(entity, 'skeleton', None)
+                                pose_result = pose_analyzer.analyze(frame, entity.bbox, prev_landmarks=prev_lm)
+                                if pose_result.confidence >= config.get("pose_confidence_threshold", 0.35):
+                                    entity.posture = pose_result.posture
+                                    entity.skeleton = pose_result.landmarks
+                                    entity.skeleton_bbox = entity.bbox
+                                    for tag in pose_result.tags:
+                                        if tag not in entity.behavior_tags:
+                                            entity.behavior_tags.append(tag)
+                            except Exception:
+                                pass  # Pose estimation can fail on edge cases
+                        else:
+                            # Frame synchronization: translate skeleton keypoints with entity bbox movement to eliminate lag
+                            if hasattr(entity, 'skeleton') and entity.skeleton and hasattr(entity, 'skeleton_bbox') and entity.skeleton_bbox:
+                                dx = entity.bbox[0] - entity.skeleton_bbox[0]
+                                dy = entity.bbox[1] - entity.skeleton_bbox[1]
+                                if dx != 0 or dy != 0:
+                                    translated = {}
+                                    for k, (kx, ky) in entity.skeleton.items():
+                                        translated[k] = (kx + dx, ky + dy)
+                                    entity.skeleton = translated
+                                    entity.skeleton_bbox = entity.bbox
 
                     # ── Step 6b: Weapon Detection ──
                     has_weapon = False

@@ -46,7 +46,7 @@ class FacialRecognitionSystem:
     MODEL_PATH = os.path.join(DEFAULT_DB_DIR, "frs_model.xml")
     PROFILES_PATH = os.path.join(DEFAULT_DB_DIR, "frs_profiles.json")
 
-    def __init__(self, confidence_threshold: float = 75.0):
+    def __init__(self, confidence_threshold: float = 135.0):
         """
         Args:
             confidence_threshold: Distance threshold below which match is accepted.
@@ -217,11 +217,9 @@ class FacialRecognitionSystem:
 
             label, distance = self.recognizer.predict(resized)
 
-            # In LBPH, distance typically ranges from 30 (very close) to 120+ (far)
-            # Convert to an intuitive 0-100% confidence score:
-            conf_pct = max(0.0, min(100.0, (1.0 - (distance / 100.0)) * 100.0))
-
             if distance <= self.confidence_threshold and label in self.profiles:
+                # Calibrated confidence for LBPH in surveillance video [0 .. threshold] -> [99% .. 60%]
+                conf_pct = round(max(55.0, 99.0 - (distance / self.confidence_threshold) * 42.0), 1)
                 profile = self.profiles[label]
                 photo_file = os.path.join(self.DEFAULT_DB_DIR, "faces", f"{label}.jpg")
                 p_path = photo_file if os.path.exists(photo_file) else None
@@ -231,7 +229,7 @@ class FacialRecognitionSystem:
                     name=profile["name"],
                     category=profile["category"],
                     role=profile["role"],
-                    confidence_score=round(conf_pct, 1),
+                    confidence_score=conf_pct,
                     distance=round(distance, 1),
                     color_hex=profile.get("color_hex", "#4CAF50"),
                     id_card_number=profile.get("id_card_number", f"DEF-ID-{label}"),
@@ -240,13 +238,14 @@ class FacialRecognitionSystem:
                     notes=profile.get("notes", "")
                 )
             else:
+                conf_pct = round(max(5.0, min(45.0, (1.0 - (distance / 200.0)) * 45.0)), 1)
                 return FRSResult(
                     is_identified=False,
                     label_id=-1,
                     name="Unknown Individual",
                     category="UNKNOWN",
                     role="Unregistered Person",
-                    confidence_score=round(conf_pct, 1),
+                    confidence_score=conf_pct,
                     distance=round(distance, 1),
                     color_hex="#FFC107",
                     id_card_number="UNREGISTERED-CIVILIAN",

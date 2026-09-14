@@ -93,16 +93,24 @@ def render_face_id_match_card(placeholder, intercept_data: Optional[Dict[str, An
         status_color = "#f59e0b"
         directive = "🔍 DIRECTIVE: SENTRY VERIFICATION REQUIRED • CHECKPOINT INSPECTION"
 
-    # Image tags
-    if captured_b64:
-        img_captured_html = f'<img src="{captured_b64}" style="width: 100%; height: 110px; object-fit: cover; border-radius: 6px; border: 2px solid {theme_border};">'
+    # Determine target and record captions
+    if frs_res and getattr(frs_res, "is_identified", False):
+        target_display = f"Target: {name}"
+        record_display = f"{id_num}"
     else:
-        img_captured_html = '<div style="width: 100%; height: 110px; background: #1e293b; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 0.75rem;">NO LIVE CROP</div>'
+        target_display = f"Target: {entity_id}"
+        record_display = "UNREGISTERED-CIVILIAN"
+
+    # Image tags with balanced 125px portrait framing
+    if captured_b64:
+        img_captured_html = f'<img src="{captured_b64}" style="width: 100%; height: 125px; object-fit: cover; object-position: center; border-radius: 6px; border: 2px solid {theme_border};">'
+    else:
+        img_captured_html = '<div style="width: 100%; height: 125px; background: #1e293b; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 0.75rem;">NO LIVE CROP</div>'
 
     if ref_b64:
-        img_ref_html = f'<img src="{ref_b64}" style="width: 100%; height: 110px; object-fit: cover; border-radius: 6px; border: 2px solid {theme_border};">'
+        img_ref_html = f'<img src="{ref_b64}" style="width: 100%; height: 125px; object-fit: cover; object-position: center; border-radius: 6px; border: 2px solid {theme_border};">'
     else:
-        img_ref_html = f'<div style="width: 100%; height: 110px; background: #1e293b; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: {status_color}; font-size: 0.75rem; border: 1px dashed {theme_border};"><span>🪪</span><span>NO ID ON FILE</span></div>'
+        img_ref_html = f'<div style="width: 100%; height: 125px; background: #1e293b; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: {status_color}; font-size: 0.75rem; border: 1px dashed {theme_border};"><span>🪪</span><span>NO ID ON FILE</span></div>'
 
     card_html = f"""
     <div style="background: {theme_bg}; border: 1.5px solid {theme_border}; border-radius: 12px; padding: 14px; margin-bottom: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.4);">
@@ -133,8 +141,8 @@ def render_face_id_match_card(placeholder, intercept_data: Optional[Dict[str, An
                     <span style="color: #64748b;">{timestamp}</span>
                 </div>
                 {img_captured_html}
-                <div style="font-size: 0.68rem; color: #94a3b8; margin-top: 5px; text-align: center; font-family: monospace;">
-                    Target: {entity_id}
+                <div style="font-size: 0.68rem; color: #94a3b8; margin-top: 5px; text-align: center; font-family: monospace; font-weight: 600;">
+                    {target_display}
                 </div>
             </div>
 
@@ -146,7 +154,7 @@ def render_face_id_match_card(placeholder, intercept_data: Optional[Dict[str, An
                 </div>
                 {img_ref_html}
                 <div style="font-size: 0.68rem; color: #cbd5e1; margin-top: 5px; text-align: center; font-family: monospace; font-weight: 700;">
-                    {id_num}
+                    {record_display}
                 </div>
             </div>
         </div>

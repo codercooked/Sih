@@ -67,9 +67,29 @@ class FaceScanner:
         for (fx, fy, fw, fh) in faces:
             global_fx = x1 + fx
             global_fy = y1 + fy
-            face_crop = roi[fy:fy + fh, fx:fx + fw]
 
-            frs_res = self.frs.identify(face_crop)
+            # Base crop for FRS matching (tight face)
+            face_crop_raw = roi[fy:fy + fh, fx:fx + fw]
+            if face_crop_raw.size == 0:
+                continue
+
+            frs_res = self.frs.identify(face_crop_raw)
+
+            # Natural, balanced portrait crop for UI display (includes full head context)
+            cx, cy = fx + fw // 2, fy + fh // 2
+            dim = int(max(fw, fh) * 1.35)
+            rx1 = max(0, cx - dim // 2)
+            rx2 = min(roi.shape[1], cx + dim // 2)
+            ry1 = max(0, cy - int(dim * 0.55))
+            ry2 = min(roi.shape[0], cy + int(dim * 0.55))
+
+            display_crop = roi[ry1:ry2, rx1:rx2]
+            if display_crop.size == 0:
+                display_crop = face_crop_raw
+
+            # Upscale if low resolution using Lanczos interpolation so CCTV capture appears crisp
+            if display_crop.shape[0] < 140 or display_crop.shape[1] < 140:
+                display_crop = cv2.resize(display_crop, (150, 150), interpolation=cv2.INTER_LANCZOS4)
 
             match = None
             if frs_res.is_identified:
@@ -87,7 +107,7 @@ class FaceScanner:
                 "box": (global_fx, global_fy, fw, fh),
                 "watchlist_match": match,
                 "frs_result": frs_res,
-                "face_crop": face_crop.copy()
+                "face_crop": display_crop
             })
 
         return results

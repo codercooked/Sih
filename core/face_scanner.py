@@ -52,6 +52,17 @@ class FaceScanner:
             minSize=(25, 25)
         )
 
+        # Robust CCTV fallback: if Haar misses due to camera angle/distance,
+        # extract candidate biometric facial head region from upper anatomy
+        if len(faces) == 0 and (y2 - y1) >= 45 and (x2 - x1) >= 20:
+            box_w = x2 - x1
+            box_h = y2 - y1
+            fw = max(20, int(box_w * 0.55))
+            fh = max(20, int(box_h * 0.25))
+            fx = max(0, int(box_w * 0.22))
+            fy = max(0, int(box_h * 0.02))
+            faces = [(fx, fy, min(fw, box_w - fx), min(fh, box_h - fy))]
+
         results = []
         for (fx, fy, fw, fh) in faces:
             global_fx = x1 + fx
@@ -75,14 +86,15 @@ class FaceScanner:
             results.append({
                 "box": (global_fx, global_fy, fw, fh),
                 "watchlist_match": match,
-                "frs_result": frs_res
+                "frs_result": frs_res,
+                "face_crop": face_crop.copy()
             })
 
         return results
 
     def draw_biometric_scan(self, frame, face_data):
         """
-        Draws tactical biometric targeting HUD and identity badge over detected faces.
+        Draws clean, defense-grade biometric targeting reticles without visual clutter.
         """
         for data in face_data:
             x, y, w, h = data["box"]
@@ -91,40 +103,40 @@ class FaceScanner:
             # Color logic
             if match:
                 if match.get("category") == "SUSPECT":
-                    color = (0, 0, 255) # Red for Suspect
+                    color = (0, 0, 240) # Crimson Red
+                    badge_label = f"🚨 {match['name']} ({match['match_confidence']})"
                 else:
-                    color = (0, 230, 118) # Green for Authorized BSF
+                    color = (0, 230, 118) # Emerald Green
+                    badge_label = f"✅ {match['name']} ({match['match_confidence']})"
             else:
-                color = (255, 215, 0) # Cyan/Gold for Unidentified
+                color = (0, 212, 255) # Cyan
+                badge_label = "👤 FRS SCAN"
 
-            thickness = 2
-            length = int(w * 0.25)
+            # Sleek Corner Brackets (no clunky solid box, leaves face clearly visible)
+            corner_len = max(6, int(min(w, h) * 0.22))
+            thickness = 1
 
-            # High-tech corner reticle
-            cv2.line(frame, (x, y), (x + length, y), color, thickness)
-            cv2.line(frame, (x, y), (x, y + length), color, thickness)
-            cv2.line(frame, (x + w, y), (x + w - length, y), color, thickness)
-            cv2.line(frame, (x + w, y), (x + w, y + length), color, thickness)
-            cv2.line(frame, (x, y + h), (x + length, y + h), color, thickness)
-            cv2.line(frame, (x, y + h), (x, y + h - length), color, thickness)
-            cv2.line(frame, (x + w, y + h), (x + w - length, y + h), color, thickness)
-            cv2.line(frame, (x + w, y + h), (x + w, y + h - length), color, thickness)
+            # Top-left
+            cv2.line(frame, (x, y), (x + corner_len, y), color, thickness)
+            cv2.line(frame, (x, y), (x, y + corner_len), color, thickness)
+            # Top-right
+            cv2.line(frame, (x + w, y), (x + w - corner_len, y), color, thickness)
+            cv2.line(frame, (x + w, y), (x + w, y + corner_len), color, thickness)
+            # Bottom-left
+            cv2.line(frame, (x, y + h), (x + corner_len, y + h), color, thickness)
+            cv2.line(frame, (x, y + h), (x, y + h - corner_len), color, thickness)
+            # Bottom-right
+            cv2.line(frame, (x + w, y + h), (x + w - corner_len, y + h), color, thickness)
+            cv2.line(frame, (x + w, y + h), (x + w, y + h - corner_len), color, thickness)
 
-            # Scanning sweep line
-            scan_y = int(y + (time.time() * 120 % max(1, h)))
-            cv2.line(frame, (x, scan_y), (x + w, scan_y), color, 1)
+            # Compact, elegant top tag
+            (tw, th), _ = cv2.getTextSize(badge_label, cv2.FONT_HERSHEY_SIMPLEX, 0.38, 1)
+            tag_x = max(0, x)
+            tag_y = max(th + 4, y - 4)
 
-            # Identification Badge Overlay
-            if match:
-                badge_w = max(w, 180)
-                badge_bg = (0, 0, 180) if match.get("category") == "SUSPECT" else (0, 140, 60)
-                cv2.rectangle(frame, (x, y - 36), (x + badge_w, y), badge_bg, -1)
-                cv2.rectangle(frame, (x, y - 36), (x + badge_w, y), color, 1)
-
-                cv2.putText(frame, match["status"], (x + 4, y - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 255), 1)
-                subtext = f"FRS MATCH: {match['match_confidence']} ({match['role']})"
-                cv2.putText(frame, subtext[:32], (x + 4, y - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (220, 220, 220), 1)
-            else:
-                cv2.putText(frame, "FRS: SCANNING...", (x, y - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.38, color, 1)
+            # Dark translucent pill background
+            cv2.rectangle(frame, (tag_x, tag_y - th - 4), (tag_x + tw + 8, tag_y + 2), (15, 20, 30), -1)
+            cv2.rectangle(frame, (tag_x, tag_y - th - 4), (tag_x + tw + 8, tag_y + 2), color, 1)
+            cv2.putText(frame, badge_label, (tag_x + 4, tag_y - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 255), 1, cv2.LINE_AA)
 
         return frame

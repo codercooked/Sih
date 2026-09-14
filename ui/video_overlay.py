@@ -61,71 +61,114 @@ def draw_skeleton(frame: np.ndarray, keypoints: Dict[str, Tuple[int, int]]) -> n
     return annotated
 
 
+def _draw_tactical_reticle(
+    img: np.ndarray,
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
+    color: Tuple[int, int, int],
+    corner_len: int = 12,
+    subtle_box: bool = True
+):
+    """Draws sleek military C2 corner reticles (L-brackets) with optional subtle 1px border."""
+    w = x2 - x1
+    h = y2 - y1
+    c_len = max(6, min(corner_len, int(min(w, h) * 0.25)))
+
+    if subtle_box:
+        cv2.rectangle(img, (x1, y1), (x2, y2), color, 1, cv2.LINE_AA)
+
+    # Top-Left Bracket
+    cv2.line(img, (x1, y1), (x1 + c_len, y1), color, 2, cv2.LINE_AA)
+    cv2.line(img, (x1, y1), (x1, y1 + c_len), color, 2, cv2.LINE_AA)
+    # Top-Right Bracket
+    cv2.line(img, (x2, y1), (x2 - c_len, y1), color, 2, cv2.LINE_AA)
+    cv2.line(img, (x2, y1), (x2, y1 + c_len), color, 2, cv2.LINE_AA)
+    # Bottom-Left Bracket
+    cv2.line(img, (x1, y2), (x1 + c_len, y2), color, 2, cv2.LINE_AA)
+    cv2.line(img, (x1, y2), (x1, y2 - c_len), color, 2, cv2.LINE_AA)
+    # Bottom-Right Bracket
+    cv2.line(img, (x2, y2), (x2 - c_len, y2), color, 2, cv2.LINE_AA)
+    cv2.line(img, (x2, y2), (x2, y2 - c_len), color, 2, cv2.LINE_AA)
+
+
+def _draw_pill_badge(
+    img: np.ndarray,
+    text: str,
+    x: int,
+    y: int,
+    border_color: Tuple[int, int, int] = (56, 189, 248),
+    bg_color: Tuple[int, int, int] = (15, 23, 42),
+    text_color: Tuple[int, int, int] = (248, 250, 252),
+    font_scale: float = 0.40,
+    padding: int = 4
+):
+    """Draws a compact, dark translucent pill badge with crisp antialiased text."""
+    (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 1)
+    bx1 = max(2, x)
+    by1 = max(th + padding * 2 + 2, y)
+    
+    # Semi-dark background
+    cv2.rectangle(img, (bx1, by1 - th - padding * 2), (bx1 + tw + padding * 2, by1), bg_color, -1)
+    cv2.rectangle(img, (bx1, by1 - th - padding * 2), (bx1 + tw + padding * 2, by1), border_color, 1, cv2.LINE_AA)
+    cv2.putText(
+        img, text, (bx1 + padding, by1 - padding - 1),
+        cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color, 1, cv2.LINE_AA
+    )
+
+
 def draw_detections(frame: np.ndarray, detections: list, tracked_entities: dict = None) -> np.ndarray:
     """
-    Draw bounding boxes with class labels and confidence on frame.
-    
-    Args:
-        frame: BGR image
-        detections: List of Detection objects
-        tracked_entities: Dict of entity_id → TrackedEntity (for drawing IDs)
-    
-    Returns:
-        Annotated frame
+    Draw clean, tactical C2 targeting reticles and concise non-cluttered pill labels.
     """
     annotated = frame.copy()
 
     # Draw tracked entities with IDs
     if tracked_entities:
         for entity_id, entity in tracked_entities.items():
-            x1, y1, x2, y2 = entity.bbox
+            x1, y1, x2, y2 = map(int, entity.bbox)
             color = COLORS.get(entity.class_name, (200, 200, 200))
 
-            # Red box if in zone
-            if entity.is_in_zone:
-                color = (0, 0, 255)
+            # Threat and Zone styling
+            if entity.is_in_zone or entity.threat_score >= 80:
+                color = (0, 0, 240)  # Crimson Red
+            elif entity.threat_score >= 50:
+                color = (0, 140, 255)  # Tactical Amber
+            elif entity.class_name == "person":
+                color = (0, 230, 118)  # Tactical Emerald
+            elif entity.class_name in ("car", "truck", "motorcycle", "bus"):
+                color = (255, 178, 50)  # Cyan-Blue
 
-            # Draw bounding box
-            cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
+            # Sleek corner reticle (no heavy opaque box blocking the subject)
+            _draw_tactical_reticle(annotated, x1, y1, x2, y2, color, corner_len=14, subtle_box=True)
 
-            # Label with entity ID + class
-            label = f"{entity.entity_id} ({entity.class_name})"
+            # Concise Tactical Pill Tag
+            label = f"{entity.entity_id} • {entity.class_name.capitalize()}"
             if entity.threat_score > 0:
-                label += f" [{entity.threat_score}]"
+                label += f" [{entity.threat_score}%]"
 
-            # Label background
-            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-            cv2.rectangle(annotated, (x1, y1 - th - 8), (x1 + tw + 4, y1), color, -1)
-            cv2.putText(
-                annotated, label, (x1 + 2, y1 - 4),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA,
-            )
+            tag_y = max(20, y1 - 4)
+            _draw_pill_badge(annotated, label, x1, tag_y, border_color=color)
 
-            # Draw posture tag if present
-            if entity.posture and entity.posture != "standing":
-                posture_label = f"⚠ {entity.posture.upper()}"
-                cv2.putText(
-                    annotated, posture_label, (x1, y2 + 18),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2, cv2.LINE_AA,
-                )
+            # Compact posture pill (only if unusual posture detected)
+            if entity.posture and entity.posture.lower() not in ("standing", "unknown"):
+                posture_label = f"⚡ {entity.posture.upper()}"
+                posture_color = (0, 0, 240) if entity.posture.lower() in ("crouching", "crawling", "lying") else (0, 140, 255)
+                _draw_pill_badge(annotated, posture_label, x1, min(annotated.shape[0] - 6, y2 + 16), border_color=posture_color, font_scale=0.36)
 
-            # Draw skeleton if present
+            # Subtle skeleton overlay
             if entity.skeleton:
                 annotated = draw_skeleton(annotated, entity.skeleton)
     else:
-        # Draw raw detections without IDs
+        # Raw detections fallback
         for det in detections:
-            x1, y1, x2, y2 = det.bbox
+            x1, y1, x2, y2 = map(int, det.bbox)
             color = COLORS.get(det.class_name, (200, 200, 200))
-            cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
-
+            _draw_tactical_reticle(annotated, x1, y1, x2, y2, color, corner_len=10, subtle_box=True)
             label = f"{det.class_name} {det.confidence:.0%}"
-            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
-            cv2.rectangle(annotated, (x1, y1 - th - 6), (x1 + tw + 4, y1), color, -1)
-            cv2.putText(
-                annotated, label, (x1 + 2, y1 - 3),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA,
-            )
+            tag_y = max(20, y1 - 4)
+            _draw_pill_badge(annotated, label, x1, tag_y, border_color=color)
 
     return annotated
 
@@ -138,34 +181,33 @@ def draw_zone(
 ) -> np.ndarray:
     """
     Draw restricted zone polygon on frame.
-    Green when safe, red with fill when intrusion detected.
+    Sleek, transparent boundary with perimeter header badge that does NOT obstruct targets walking inside.
     """
     annotated = frame.copy()
     pts = polygon.reshape((-1, 1, 2))
 
     if is_intruded:
-        # Semi-transparent red fill
+        # Subtle semi-transparent red fill (15% tint, completely transparent to subjects)
         overlay = annotated.copy()
-        cv2.fillPoly(overlay, [polygon], (0, 0, 180))
-        cv2.addWeighted(overlay, 0.25, annotated, 0.75, 0, annotated)
-        cv2.polylines(annotated, [pts], True, COLORS["zone_intrusion"], 3)
+        cv2.fillPoly(overlay, [polygon], (0, 0, 200))
+        cv2.addWeighted(overlay, 0.15, annotated, 0.85, 0, annotated)
+        cv2.polylines(annotated, [pts], True, (0, 0, 240), 2, cv2.LINE_AA)
     else:
-        # Green outline
-        cv2.polylines(annotated, [pts], True, COLORS["zone_safe"], 2)
+        # Crisp emerald perimeter line
+        cv2.polylines(annotated, [pts], True, (0, 200, 100), 1, cv2.LINE_AA)
 
-    # Zone label
+    # Perimeter header label placed on top boundary (NOT inside center of zone)
     if zone_name:
-        cx = int(np.mean(polygon[:, 0]))
-        cy = int(np.mean(polygon[:, 1]))
-        status = "⚠ INTRUSION" if is_intruded else "MONITORING"
-        label = f"{zone_name}: {status}"
-        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-        cv2.putText(
-            annotated, label, (cx - tw // 2, cy),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.6,
-            COLORS["zone_intrusion"] if is_intruded else COLORS["zone_safe"],
-            2, cv2.LINE_AA,
-        )
+        top_y = int(np.min(polygon[:, 1]))
+        center_x = int(np.mean(polygon[:, 0]))
+        status_text = "🚨 INTRUSION BREACH" if is_intruded else "MONITORING"
+        badge_text = f"🛡️ {zone_name.upper()} • {status_text}"
+        badge_color = (0, 0, 240) if is_intruded else (0, 200, 100)
+
+        (tw, th), _ = cv2.getTextSize(badge_text, cv2.FONT_HERSHEY_SIMPLEX, 0.42, 1)
+        bx = max(10, center_x - tw // 2)
+        by = max(th + 10, top_y - 6)
+        _draw_pill_badge(annotated, badge_text, bx, by, border_color=badge_color, font_scale=0.42)
 
     return annotated
 
@@ -174,26 +216,25 @@ def draw_threat_badge(
     frame: np.ndarray,
     score: int,
     level: str = "low",
-    position: Tuple[int, int] = (10, 10),
+    position: Tuple[int, int] = (15, 20),
 ) -> np.ndarray:
     """
-    Draw threat score badge in corner of frame.
-    Color-coded by threat level.
+    Draw modern tactical HUD defense badge in corner of frame.
     """
     annotated = frame.copy()
     color = THREAT_COLORS.get(level, COLORS["threat_low"])
 
-    # Badge background
-    badge_text = f"THREAT: {score}/100"
-    (tw, th), _ = cv2.getTextSize(badge_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
-    x, y = position
-    cv2.rectangle(
-        annotated, (x, y), (x + tw + 20, y + th + 20),
-        color, -1,
-    )
-    cv2.putText(
-        annotated, badge_text, (x + 10, y + th + 10),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA,
+    badge_text = f"● DEFENSE HUD • THREAT LEVEL: {score}/100 [{level.upper()}]"
+    _draw_pill_badge(
+        annotated,
+        badge_text,
+        position[0],
+        position[1],
+        border_color=color,
+        bg_color=(15, 23, 42),
+        text_color=(255, 255, 255),
+        font_scale=0.45,
+        padding=6
     )
 
     return annotated
@@ -206,58 +247,42 @@ def draw_plate_text(
     confidence: float = 0.0,
     security_status: str = "UNKNOWN",
 ) -> np.ndarray:
-    """Draw ANPR plate text near the vehicle with security status badge."""
+    """Draw ANPR plate text with sleek tactical badge above vehicle."""
     annotated = frame.copy()
     if not text or text == "UNREADABLE":
         return annotated
 
     if security_status == "BLACKLISTED":
         label = f"🚨 BLACKLIST: {text} ({confidence:.0%})"
-        bg_color = (0, 0, 255) # Red
-        text_color = (255, 255, 255)
+        border_color = (0, 0, 240)
     elif security_status == "AUTHORIZED":
         label = f"✅ AUTH DEFENSE: {text} ({confidence:.0%})"
-        bg_color = (0, 180, 50) # Green
-        text_color = (255, 255, 255)
+        border_color = (0, 200, 100)
     else:
-        label = f"PLATE: {text} ({confidence:.0%})"
-        bg_color = (0, 200, 255) # Yellow
-        text_color = (0, 0, 0)
+        label = f"🚗 PLATE: {text} ({confidence:.0%})"
+        border_color = (0, 180, 255)
 
     x, y = position
-    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
-
-    cv2.rectangle(annotated, (x, y - th - 8), (x + tw + 10, y + 4), bg_color, -1)
-    cv2.putText(
-        annotated, label, (x + 5, y - 2),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.55, text_color, 2, cv2.LINE_AA,
-    )
-
+    _draw_pill_badge(annotated, label, max(2, x), max(18, y), border_color=border_color, font_scale=0.42)
     return annotated
 
 
 def draw_fps(frame: np.ndarray, fps: float) -> np.ndarray:
-    """Draw FPS counter on frame."""
+    """Draw tactical FPS and pipeline status pill on frame."""
     annotated = frame.copy()
-    h = annotated.shape[0]
-    label = f"FPS: {fps:.1f}"
-    cv2.putText(
-        annotated, label, (10, h - 15),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA,
-    )
+    w = annotated.shape[1]
+    label = f"⚡ {fps:.1f} FPS • EDGE AI C2"
+    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.40, 1)
+    bx = w - tw - 16
+    _draw_pill_badge(annotated, label, max(10, bx), 20, border_color=(71, 85, 105), font_scale=0.40, padding=4)
     return annotated
 
 
 def draw_night_mode_indicator(frame: np.ndarray) -> np.ndarray:
-    """Draw night mode indicator on frame."""
+    """Draw night mode CLAHE enhancement indicator pill."""
     annotated = frame.copy()
-    w = annotated.shape[1]
-    label = "NIGHT MODE (CLAHE Enhanced)"
-    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-    cv2.putText(
-        annotated, label, (w - tw - 10, 25),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 200, 255), 1, cv2.LINE_AA,
-    )
+    label = "🌙 NIGHT-VISION (CLAHE ACTIVE)"
+    _draw_pill_badge(annotated, label, 15, 52, border_color=(0, 200, 255), font_scale=0.40, padding=4)
     return annotated
 
 

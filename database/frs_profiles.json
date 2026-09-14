@@ -3,6 +3,8 @@
     "name": "Tariq Mahmood",
     "category": "SUSPECT",
     "role": "High-Risk Border Infiltrator",
+    "id_card_number": "POI-IND-10492",
+    "clearance": "CRITICAL RED NOTICE",
     "notes": "Flagged on IB Western Sector alert list.",
     "color_hex": "#F44336"
   },
@@ -10,6 +12,8 @@
     "name": "Vikram Rawat",
     "category": "SUSPECT",
     "role": "Cross-Border Contraband Courier",
+    "id_card_number": "POI-IND-20831",
+    "clearance": "WATCHLIST CONTRABAND",
     "notes": "History of unauthorized perimeter breaches.",
     "color_hex": "#F44336"
   },
@@ -17,6 +21,8 @@
     "name": "Ct. Rajesh Sharma",
     "category": "AUTHORIZED_BSF",
     "role": "BSF Sentry Patrol Alpha",
+    "id_card_number": "BSF-SNT-4108",
+    "clearance": "LEVEL-2 BORDER SENTRY",
     "notes": "Assigned to BOP-01 North Gate perimeter.",
     "color_hex": "#4CAF50"
   },
@@ -24,6 +30,8 @@
     "name": "Insp. Amarjit Singh",
     "category": "AUTHORIZED_BSF",
     "role": "BOP Commander / Duty Officer",
+    "id_card_number": "BSF-OFF-0922",
+    "clearance": "LEVEL-3 DUTY COMMANDER",
     "notes": "Sector Command Officer.",
     "color_hex": "#4CAF50"
   },
@@ -31,13 +39,8 @@
     "name": "Test Infiltrator X",
     "category": "SUSPECT",
     "role": "Perimeter Breach Suspect",
-    "notes": "Test enrollment",
-    "color_hex": "#F44336"
-  },
-  "204": {
-    "name": "Test Infiltrator X",
-    "category": "SUSPECT",
-    "role": "Perimeter Breach Suspect",
+    "id_card_number": "POI-IND-203",
+    "clearance": "CRITICAL RED NOTICE",
     "notes": "Test enrollment",
     "color_hex": "#F44336"
   }

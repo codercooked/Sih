@@ -27,6 +27,9 @@ class FRSResult:
     confidence_score: float    # 0.0 to 100.0%
     distance: float            # LBPH raw distance
     color_hex: str             # Visual alert color (Red for Suspect, Green for Authorized, Yellow for Civilian)
+    id_card_number: str = "N/A"
+    clearance: str = "UNVERIFIED"
+    photo_path: Optional[str] = None
     notes: str = ""
 
 
@@ -64,6 +67,11 @@ class FacialRecognitionSystem:
                 with open(self.PROFILES_PATH, "r") as f:
                     raw = json.load(f)
                     self.profiles = {int(k): v for k, v in raw.items()}
+                for k, p in self.profiles.items():
+                    if "id_card_number" not in p:
+                        p["id_card_number"] = f"POI-IND-{k}" if p.get("category") == "SUSPECT" else f"BSF-SNT-{k}"
+                    if "clearance" not in p:
+                        p["clearance"] = "CRITICAL RED NOTICE" if p.get("category") == "SUSPECT" else "LEVEL-2 BORDER SENTRY"
                 self.recognizer.read(self.MODEL_PATH)
                 self.is_trained = True
                 return
@@ -80,6 +88,8 @@ class FacialRecognitionSystem:
                 "name": "Tariq Mahmood",
                 "category": "SUSPECT",
                 "role": "High-Risk Border Infiltrator",
+                "id_card_number": "POI-IND-10492",
+                "clearance": "CRITICAL RED NOTICE",
                 "notes": "Flagged on IB Western Sector alert list.",
                 "color_hex": "#F44336"
             },
@@ -87,6 +97,8 @@ class FacialRecognitionSystem:
                 "name": "Vikram Rawat",
                 "category": "SUSPECT",
                 "role": "Cross-Border Contraband Courier",
+                "id_card_number": "POI-IND-20831",
+                "clearance": "WATCHLIST CONTRABAND",
                 "notes": "History of unauthorized perimeter breaches.",
                 "color_hex": "#F44336"
             },
@@ -94,6 +106,8 @@ class FacialRecognitionSystem:
                 "name": "Ct. Rajesh Sharma",
                 "category": "AUTHORIZED_BSF",
                 "role": "BSF Sentry Patrol Alpha",
+                "id_card_number": "BSF-SNT-4108",
+                "clearance": "LEVEL-2 BORDER SENTRY",
                 "notes": "Assigned to BOP-01 North Gate perimeter.",
                 "color_hex": "#4CAF50"
             },
@@ -101,6 +115,8 @@ class FacialRecognitionSystem:
                 "name": "Insp. Amarjit Singh",
                 "category": "AUTHORIZED_BSF",
                 "role": "BOP Commander / Duty Officer",
+                "id_card_number": "BSF-OFF-0922",
+                "clearance": "LEVEL-3 DUTY COMMANDER",
                 "notes": "Sector Command Officer.",
                 "color_hex": "#4CAF50"
             },
@@ -129,28 +145,26 @@ class FacialRecognitionSystem:
         name: str,
         category: str,
         role: str,
+        id_card_number: str = "",
+        clearance: str = "",
         notes: str = ""
     ) -> int:
         """
         Enroll a new person of interest or authorized jawan into the FRS database.
-
-        Args:
-            face_images: 1 or more BGR or grayscale face crops.
-            name: Full name.
-            category: "SUSPECT" | "AUTHORIZED_BSF" | "CIVILIAN"
-            role: Descriptive title or assignment.
-            notes: Extra background context.
-
-        Returns:
-            new_label_id
         """
         new_id = (max(self.profiles.keys()) + 1) if self.profiles else 101
         color_hex = "#F44336" if category == "SUSPECT" else ("#4CAF50" if category == "AUTHORIZED_BSF" else "#FFC107")
+        if not id_card_number:
+            id_card_number = f"POI-IND-{new_id}" if category == "SUSPECT" else f"BSF-SNT-{new_id}"
+        if not clearance:
+            clearance = "CRITICAL RED NOTICE" if category == "SUSPECT" else "LEVEL-2 BORDER SENTRY"
 
         self.profiles[new_id] = {
             "name": name,
             "category": category,
             "role": role,
+            "id_card_number": id_card_number,
+            "clearance": clearance,
             "notes": notes,
             "color_hex": color_hex
         }
@@ -209,6 +223,8 @@ class FacialRecognitionSystem:
 
             if distance <= self.confidence_threshold and label in self.profiles:
                 profile = self.profiles[label]
+                photo_file = os.path.join(self.DEFAULT_DB_DIR, "faces", f"{label}.jpg")
+                p_path = photo_file if os.path.exists(photo_file) else None
                 return FRSResult(
                     is_identified=True,
                     label_id=label,
@@ -218,6 +234,9 @@ class FacialRecognitionSystem:
                     confidence_score=round(conf_pct, 1),
                     distance=round(distance, 1),
                     color_hex=profile.get("color_hex", "#4CAF50"),
+                    id_card_number=profile.get("id_card_number", f"DEF-ID-{label}"),
+                    clearance=profile.get("clearance", "VERIFIED CLEARANCE"),
+                    photo_path=p_path,
                     notes=profile.get("notes", "")
                 )
             else:
@@ -230,7 +249,10 @@ class FacialRecognitionSystem:
                     confidence_score=round(conf_pct, 1),
                     distance=round(distance, 1),
                     color_hex="#FFC107",
-                    notes="Face detected; no watchlist match."
+                    id_card_number="UNREGISTERED-CIVILIAN",
+                    clearance="NO CLEARANCE ON RECORD",
+                    photo_path=None,
+                    notes="Face detected on CCTV; no registered defense or watchlist record found."
                 )
 
         except Exception as e:

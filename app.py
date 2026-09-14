@@ -51,7 +51,8 @@ from ui.threat_analysis_studio import render_threat_analysis_studio
 from ui.bop_command_grid import render_bop_command_grid
 from ui.tactical_border_map import render_tactical_border_map
 from ui.defense_siren import render_emergency_siren_component, render_qrt_dispatch_button, render_last_dispatch_modal
-from core.frs import FacialRecognitionSystem
+from ui.face_id_card import render_face_id_match_card
+from core.frs import FacialRecognitionSystem, FRSResult
 from core.anpr import ANPREngine, BLACKLIST_REGISTRY, WHITELIST_REGISTRY
 import pandas as pd
 from core.trajectory_predictor import predict_trajectory, compute_direction_toward_point
@@ -193,6 +194,7 @@ def init_session_state():
         "last_log_time": {},  # entity_id → last log timestamp
         "max_threat_score": 0,
         "ai_insights_cache": None,
+        "latest_face_intercept": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -579,6 +581,65 @@ def main():
             )
             render_last_dispatch_modal()
 
+            # 🎯 Live Biometric Face Intercept & ID Match Card
+            face_id_placeholder = st.empty()
+            render_face_id_match_card(face_id_placeholder, st.session_state.get("latest_face_intercept"))
+
+            with st.expander("🎯 Test Biometric Intercept & ID Match", expanded=False):
+                col_f1, col_f2 = st.columns(2)
+                with col_f1:
+                    if st.button("🚨 Suspect Intercept (#101)", key="btn_test_suspect_101", use_container_width=True):
+                        ref_p = os.path.join(os.path.dirname(__file__), "database", "faces", "101.jpg")
+                        crop_img = cv2.imread(ref_p) if os.path.exists(ref_p) else None
+                        res = FRSResult(
+                            is_identified=True,
+                            label_id=101,
+                            name="Tariq Mahmood",
+                            category="SUSPECT",
+                            role="High-Risk Border Infiltrator",
+                            confidence_score=94.2,
+                            distance=22.4,
+                            color_hex="#ef4444",
+                            id_card_number="POI-IND-10492",
+                            clearance="CRITICAL RED NOTICE",
+                            photo_path=ref_p,
+                            notes="Flagged on Western Sector Alert Registry"
+                        )
+                        st.session_state["latest_face_intercept"] = {
+                            "face_crop": crop_img,
+                            "frs_result": res,
+                            "timestamp": time.strftime("%H:%M:%S IST"),
+                            "camera": config.get("camera_name", "CAM-01 [Border Sector]"),
+                            "entity_id": "TARGET-SUSPECT-101",
+                        }
+                        render_face_id_match_card(face_id_placeholder, st.session_state["latest_face_intercept"])
+                with col_f2:
+                    if st.button("✅ Sentry Patrol (#201)", key="btn_test_sentry_201", use_container_width=True):
+                        ref_p = os.path.join(os.path.dirname(__file__), "database", "faces", "201.jpg")
+                        crop_img = cv2.imread(ref_p) if os.path.exists(ref_p) else None
+                        res = FRSResult(
+                            is_identified=True,
+                            label_id=201,
+                            name="Ct. Rajesh Sharma",
+                            category="AUTHORIZED_BSF",
+                            role="BSF Sentry Patrol Alpha",
+                            confidence_score=96.8,
+                            distance=14.1,
+                            color_hex="#10b981",
+                            id_card_number="BSF-SNT-4108",
+                            clearance="LEVEL-2 BORDER SENTRY",
+                            photo_path=ref_p,
+                            notes="Registered BSF Border Outpost Sentry"
+                        )
+                        st.session_state["latest_face_intercept"] = {
+                            "face_crop": crop_img,
+                            "frs_result": res,
+                            "timestamp": time.strftime("%H:%M:%S IST"),
+                            "camera": config.get("camera_name", "CAM-01 [Border Sector]"),
+                            "entity_id": "SENTRY-BSF-201",
+                        }
+                        render_face_id_match_card(face_id_placeholder, st.session_state["latest_face_intercept"])
+
             # Profile card area
             profile_placeholder = st.empty()
 
@@ -812,7 +873,17 @@ def main():
                         if face_data:
                             entity.face_data = face_data
                             for data in face_data:
-                                if data["watchlist_match"]:
+                                # Update latest face intercept for live CCTV vs ID card verification
+                                if "face_crop" in data and data["face_crop"] is not None:
+                                    st.session_state["latest_face_intercept"] = {
+                                        "face_crop": data["face_crop"],
+                                        "frs_result": data.get("frs_result"),
+                                        "timestamp": time.strftime("%H:%M:%S IST"),
+                                        "camera": config.get("camera_name", "CAM-01 [Border Sector]"),
+                                        "entity_id": entity_id,
+                                    }
+
+                                if data.get("watchlist_match"):
                                     threat.score = max(threat.score, 100)
                                     entity.threat_score = threat.score
                                     if "WATCHLIST MATCH" not in entity.behavior_tags:
@@ -1087,6 +1158,15 @@ def main():
                 # Profile card and Alert log update (Throttled to 2.5s for calm, readable UI)
                 if 'last_dashboard_update' not in st.session_state:
                     st.session_state.last_dashboard_update = 0.0
+
+                # Face Intercept Card update (throttled to 1.5s for smooth, steady display)
+                if 'last_face_card_update' not in st.session_state:
+                    st.session_state.last_face_card_update = 0.0
+
+                if now_t - st.session_state.last_face_card_update >= 1.5:
+                    st.session_state.last_face_card_update = now_t
+                    if st.session_state.get("latest_face_intercept"):
+                        render_face_id_match_card(face_id_placeholder, st.session_state["latest_face_intercept"])
 
                 if now_t - st.session_state.last_dashboard_update >= 2.5:
                     st.session_state.last_dashboard_update = now_t

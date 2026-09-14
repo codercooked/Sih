@@ -25,7 +25,9 @@ VIDEO_FILES = [
     "03_vehicle_perimeter_tracking.mp4",
     "04_single_intruder_incursion.mp4",
     "05_night_vision_incursion.mp4",
-    "06_traffic_checkpoint_overview.mp4"
+    "06_traffic_checkpoint_overview.mp4",
+    "07_biometric_face_intercept_sentry.mp4",
+    "08_checkpoint_face_surveillance.mp4",
 ]
 
 
@@ -33,7 +35,7 @@ def test_sample_videos_directory_exists_and_populated():
     """Verify sample_videos/ exists and contains required test videos."""
     assert os.path.exists(SAMPLE_DIR), "sample_videos/ directory must exist"
     video_files = [f for f in os.listdir(SAMPLE_DIR) if f.endswith(('.mp4', '.avi'))]
-    assert len(video_files) >= 6, f"Expected at least 6 sample videos, found {len(video_files)}: {video_files}"
+    assert len(video_files) >= 8, f"Expected at least 8 sample videos, found {len(video_files)}: {video_files}"
     for required in VIDEO_FILES:
         assert required in video_files, f"Missing required sample video: {required}"
     print(f"✅ Found {len(video_files)} sample test videos in sample_videos/")

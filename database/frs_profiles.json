@@ -70,5 +70,14 @@
     "clearance": "CRITICAL RED NOTICE",
     "notes": "Test enrollment",
     "color_hex": "#F44336"
+  },
+  "207": {
+    "name": "Test Infiltrator X",
+    "category": "SUSPECT",
+    "role": "Perimeter Breach Suspect",
+    "id_card_number": "POI-IND-207",
+    "clearance": "CRITICAL RED NOTICE",
+    "notes": "Test enrollment",
+    "color_hex": "#F44336"
   }
 }

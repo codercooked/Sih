@@ -14,6 +14,8 @@ This directory contains benchmark test surveillance video clips tailored for ver
 | **`04_single_intruder_incursion.mp4`** | 768x432 @ 10.0 FPS | 1394 frames | **Restricted Boundary Intrusion**: Individual pedestrian crossing perimeter line directly into high-risk zone polygon. |
 | **`05_night_vision_incursion.mp4`** | 768x432 @ 10.0 FPS | 250 frames | **Night & Low-Light Infiltration**: Night surveillance video with low ambient illumination. Recommended for testing **Night Mode (CLAHE)** and **Drone Thermal HUD**. |
 | **`06_traffic_checkpoint_overview.mp4`** | 1280x720 @ 30.0 FPS | 300 frames | **Wide-Area Border Checkpoint**: Full HD overview of active multi-lane vehicle checkpoint with sustained tracking. |
+| **`07_biometric_face_intercept_sentry.mp4`** | 768x432 @ 12.0 FPS | 732 frames | **🎯 Biometric Face Intercept (Watchlist Suspect)**: Individual approaching checkpoint camera with clear frontal facial visibility. Automatically matched against **Tariq Mahmood** (`POI-IND-10492`, Suspect Watchlist) with side-by-side CCTV vs ID record verification. |
+| **`08_checkpoint_face_surveillance.mp4`** | 768x432 @ 12.0 FPS | 1091 frames | **🪪 Sentry Biometric Verification (Authorized BSF)**: Defense personnel approaching sentry checkpoint. Automatically matched against **Ct. Rajesh Sharma** (`BSF-SNT-4108`, Level-2 Border Sentry) with instant clearance status. |
 
 ---
 

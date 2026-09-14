@@ -233,7 +233,23 @@ def main():
             if os.path.exists(sample_dir):
                 samples = sorted([f for f in os.listdir(sample_dir) if f.endswith(('.mp4', '.avi'))])
                 if samples:
-                    selected_sample = st.selectbox("Select Sample", samples)
+                    sample_labels = {
+                        "01_perimeter_people_surveillance.mp4": "01: Perimeter Surveillance (Pedestrians)",
+                        "02_border_checkpoint_multiclass.mp4": "02: Border Checkpoint (Multi-Class)",
+                        "03_vehicle_perimeter_tracking.mp4": "03: Vehicle Tracking (Speed & ANPR)",
+                        "04_single_intruder_incursion.mp4": "04: Single Intruder (Perimeter Breach)",
+                        "05_night_vision_incursion.mp4": "05: Night Vision Incursion (CLAHE/Thermal)",
+                        "06_traffic_checkpoint_overview.mp4": "06: Traffic Checkpoint Overview (Wide Area)",
+                        "07_biometric_face_intercept_sentry.mp4": "07: 🎯 Biometric Face Intercept (Watchlist Suspect #101)",
+                        "08_checkpoint_face_surveillance.mp4": "08: 🪪 Sentry Face Verification (Authorized BSF #201)",
+                    }
+                    default_idx = samples.index("07_biometric_face_intercept_sentry.mp4") if "07_biometric_face_intercept_sentry.mp4" in samples else 0
+                    selected_sample = st.selectbox(
+                        "Select Sample",
+                        samples,
+                        index=default_idx,
+                        format_func=lambda s: sample_labels.get(s, s)
+                    )
                     video_source = os.path.join(sample_dir, selected_sample)
                 else:
                     st.warning("No sample videos found.")

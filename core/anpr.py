@@ -102,7 +102,19 @@ class ANPREngine:
                 alert_color="#9E9E9E"
             )
 
-        vehicle_crop = frame[y1:y2, x1:x2]
+        # Focus on the lower 60% of the vehicle where plates are typically located
+        plate_y = int((y2 - y1) * 0.4)
+        vehicle_crop = frame[y1 + plate_y : y2, x1:x2]
+        
+        if vehicle_crop.size == 0:
+            return PlateResult(text="UNREADABLE", confidence=0.0, is_readable=False, vehicle_category=v_cat, security_status="UNKNOWN", alert_color="#9E9E9E")
+
+        # Upscale by 2x to improve EasyOCR accuracy on small CCTV plates
+        try:
+            import cv2
+            vehicle_crop = cv2.resize(vehicle_crop, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+        except Exception:
+            pass
 
         try:
             results = self.reader.readtext(vehicle_crop, detail=1)

@@ -242,8 +242,9 @@ def main():
                         "06_traffic_checkpoint_overview.mp4": "06: Traffic Checkpoint Overview (Wide Area)",
                         "07_biometric_face_intercept_sentry.mp4": "07: 🎯 Biometric Face Intercept (Watchlist Suspect #101)",
                         "08_checkpoint_face_surveillance.mp4": "08: 🪪 Sentry Face Verification (Authorized BSF #201)",
+                        "09_license_plate_demo.mp4": "09: 🚘 ALPR License Plate Read Demo",
                     }
-                    default_idx = samples.index("07_biometric_face_intercept_sentry.mp4") if "07_biometric_face_intercept_sentry.mp4" in samples else 0
+                    default_idx = samples.index("09_license_plate_demo.mp4") if "09_license_plate_demo.mp4" in samples else 0
                     selected_sample = st.selectbox(
                         "Select Sample",
                         samples,

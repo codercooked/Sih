@@ -66,17 +66,8 @@ class FaceScanner:
                 if fw >= 20 and fh >= 20:
                     faces.append((fx, fy, fw, fh))
 
-        # Robust CCTV fallback: if AI misses due to camera angle/distance,
-        # extract candidate biometric facial head region from upper anatomy
-        if len(faces) == 0 and (y2 - y1) >= 45 and (x2 - x1) >= 20:
-            box_w = x2 - x1
-            box_h = y2 - y1
-            fw = max(20, int(box_w * 0.55))
-            fh = max(20, int(box_h * 0.25))
-            fx = max(0, int(box_w * 0.22))
-            fy = max(0, int(box_h * 0.02))
-            faces = [(fx, fy, min(fw, box_w - fx), min(fh, box_h - fy))]
-
+        # Note: We strictly rely on MediaPipe. The naive CCTV fallback was removed 
+        # to prevent misclassified vehicles from being extracted as faces.
         final_results = []
         for (fx, fy, fw, fh) in faces:
             global_fx = x1 + fx

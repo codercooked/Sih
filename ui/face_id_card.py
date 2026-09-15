@@ -32,7 +32,7 @@ def render_face_id_match_card(placeholder, intercept_data: Optional[Dict[str, An
     Renders the Live Biometric Face Intercept & Government/Defense ID Match Card.
     """
     if not intercept_data:
-        placeholder.markdown("""
+        placeholder.html("""
         <div style="background: rgba(15, 23, 42, 0.75); border: 1px dashed #334155; border-radius: 10px; padding: 14px; text-align: center; margin-bottom: 15px;">
             <div style="font-size: 1.2rem; margin-bottom: 4px;">🎯</div>
             <div style="font-family: monospace; font-size: 0.85rem; font-weight: 700; color: #38bdf8; letter-spacing: 0.08em;">
@@ -42,7 +42,7 @@ def render_face_id_match_card(placeholder, intercept_data: Optional[Dict[str, An
                 Scanning surveillance video for faces • Real-time database matching enabled
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
         return
 
     frs_res = intercept_data.get("frs_result")
@@ -178,4 +178,4 @@ def render_face_id_match_card(placeholder, intercept_data: Optional[Dict[str, An
     </div>
     """
 
-    placeholder.markdown(card_html, unsafe_allow_html=True)
+    placeholder.html(card_html)

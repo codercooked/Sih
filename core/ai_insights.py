@@ -54,14 +54,20 @@ class AIInsightsAnalyzer:
         # 1. Structure the surveillance intelligence payload
         telemetry_summary = self._build_telemetry_summary(events, active_entities, stats)
 
-        # 2. Try Google Gemini API if key is available
+        # 2. Try Google Gemini API or NVIDIA API if key is available
         if key and len(key.strip()) > 8:
             try:
-                gemini_result = self._call_gemini_api(telemetry_summary, key.strip(), model)
-                if gemini_result and gemini_result.get("text"):
-                    return self._format_api_response(gemini_result["text"], telemetry_summary, model)
+                if key.startswith("nvapi-"):
+                    api_model = "openai/gpt-oss-20b"
+                    api_result = self._call_nvidia_api(telemetry_summary, key.strip(), api_model)
+                else:
+                    api_model = model
+                    api_result = self._call_gemini_api(telemetry_summary, key.strip(), api_model)
+                    
+                if api_result and api_result.get("text"):
+                    return self._format_api_response(api_result["text"], telemetry_summary, api_model)
             except Exception as e:
-                print(f"[AI Insights] Gemini API call failed, switching to autonomous engine: {e}")
+                print(f"[AI Insights] API call failed, switching to autonomous engine: {e}")
 
         # 3. Autonomous High-Depth Military Tactical Synthesis Fallback
         return self._generate_autonomous_synthesis(telemetry_summary)
@@ -146,6 +152,57 @@ class AIInsightsAnalyzer:
             "recent_events_sample": events[:8],
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S IST"),
         }
+
+    def _call_nvidia_api(self, telemetry: Dict[str, Any], api_key: str, model: str) -> Dict[str, Any]:
+        """Direct HTTPS call to NVIDIA NIM API using OpenAI client."""
+        try:
+            from openai import OpenAI
+        except ImportError:
+            raise RuntimeError("openai python package is not installed. Run 'pip install openai'.")
+
+        client = OpenAI(
+            base_url="https://integrate.api.nvidia.com/v1",
+            api_key=api_key
+        )
+
+        prompt = f"""
+You are VIGIL-AI, a military and tactical border intelligence analyst artificial intelligence.
+Analyze the following real-time perimeter surveillance telemetry and sensor feeds:
+
+TELEMETRY CONTEXT:
+- Timestamp: {telemetry['timestamp']}
+- Total Recorded Incidents: {telemetry['total_incidents']}
+- Critical Threats (Score >= 80): {telemetry['critical_incidents']}
+- High Threats (Score 60-79): {telemetry['high_incidents']}
+- Peak Threat Score: {telemetry['peak_threat_score']}/100
+- Active Tracked Persons: {telemetry['active_persons']}
+- Active Tracked Vehicles: {telemetry['active_vehicles']}
+- License Plates Scanned: {telemetry['unique_plates_scanned']}
+- Stolen / Watchlist Plate Hits: {telemetry['watchlist_plates']}
+- Biometric Face Watchlist Matches: {telemetry['biometric_watchlist_hits']}
+- Posture Breakdown: {telemetry['posture_distribution']}
+- Recent Incident Sample: {json.dumps(telemetry['recent_events_sample'], default=str)}
+
+Generate a comprehensive military-style Strategic Intelligence Briefing formatted cleanly in Markdown:
+Include:
+1. ### 🛡️ Executive Strategic Intelligence Summary
+2. ### 🚨 Threat Level & DEFCON Classification (DEFCON 1 to 4 with justification)
+3. ### 🎯 Identified High-Value Targets & Suspect Dossiers (include plates, biometrics, loiter times)
+4. ### 🔍 Spatial Breach & Modus Operandi Patterns (climbing, crouching, vehicle loitering, evasion)
+5. ### ⚔️ Operational Directives & Rapid Countermeasures (Rules of Engagement, drone interception, ground patrol dispatch)
+
+Be authoritative, crisp, professional, and tactical.
+"""
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            top_p=1,
+            max_tokens=2048,
+            stream=False
+        )
+
+        return {"text": completion.choices[0].message.content}
 
     def _call_gemini_api(self, telemetry: Dict[str, Any], api_key: str, model: str) -> Dict[str, Any]:
         """Direct HTTPS call to Google Gemini REST API."""

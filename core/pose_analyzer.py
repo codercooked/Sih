@@ -51,10 +51,10 @@ class PoseAnalyzer:
         # without tracking state corruption or cross-entity jitter/lag.
         self.pose = self.mp_pose.Pose(
             static_image_mode=True,
-            model_complexity=0,  # Ultra-fast real-time inference (~7ms)
+            model_complexity=2,  # Maximum accuracy model for precise limb tracking
             enable_segmentation=False,
-            min_detection_confidence=0.35,
-            min_tracking_confidence=0.35,
+            min_detection_confidence=0.55,
+            min_tracking_confidence=0.55,
         )
         self.confidence_threshold = confidence_threshold
 
@@ -98,8 +98,8 @@ class PoseAnalyzer:
         # Intelligent anatomical padding (avoids cutting off head/arms/legs)
         cx = (x1 + x2) // 2
         cy = (y1 + y2) // 2
-        target_w = max(int(bw * 1.4), int(bh * 0.55))
-        target_h = int(bh * 1.25)
+        target_w = max(int(bw * 1.8), int(bh * 0.7))
+        target_h = int(bh * 1.4)
 
         px1 = max(0, cx - target_w // 2)
         px2 = min(w, cx + target_w // 2)

@@ -905,13 +905,26 @@ def main():
                             for data in face_data:
                                 # Update latest face intercept for live CCTV vs ID card verification
                                 if "face_crop" in data and data["face_crop"] is not None:
-                                    st.session_state["latest_face_intercept"] = {
-                                        "face_crop": data["face_crop"],
-                                        "frs_result": data.get("frs_result"),
-                                        "timestamp": time.strftime("%H:%M:%S IST"),
-                                        "camera": config.get("camera_name", "CAM-01 [Border Sector]"),
-                                        "entity_id": entity_id,
-                                    }
+                                    current_intercept = st.session_state.get("latest_face_intercept")
+                                    should_update = False
+                                    
+                                    if not current_intercept or current_intercept.get("entity_id") != entity_id:
+                                        should_update = True
+                                    else:
+                                        # Only update for the same person if we get a new positive ID
+                                        curr_id = current_intercept.get("frs_result") and current_intercept["frs_result"].is_identified
+                                        new_id = data.get("frs_result") and data["frs_result"].is_identified
+                                        if new_id and not curr_id:
+                                            should_update = True
+
+                                    if should_update:
+                                        st.session_state["latest_face_intercept"] = {
+                                            "face_crop": data["face_crop"],
+                                            "frs_result": data.get("frs_result"),
+                                            "timestamp": time.strftime("%H:%M:%S IST"),
+                                            "camera": config.get("camera_name", "CAM-01 [Border Sector]"),
+                                            "entity_id": entity_id,
+                                        }
 
                                 if data.get("watchlist_match"):
                                     threat.score = max(threat.score, 100)

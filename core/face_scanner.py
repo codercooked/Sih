@@ -8,6 +8,7 @@ watchlist without requiring dedicated FRS smart-camera hardware.
 import cv2
 import numpy as np
 import time
+import mediapipe as mp
 from core.frs import FacialRecognitionSystem, FRSResult
 
 
@@ -17,8 +18,12 @@ class FaceScanner:
     """
 
     def __init__(self):
-        cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-        self.face_cascade = cv2.CascadeClassifier(cascade_path)
+        self.mp_face_detection = mp.solutions.face_detection
+        # model_selection=1 is for far-range detection (ideal for CCTV), 0 is close-range
+        self.face_detection = self.mp_face_detection.FaceDetection(
+            model_selection=1,
+            min_detection_confidence=0.5
+        )
         self.frs = FacialRecognitionSystem()
 
     def scan_for_faces(self, frame, bbox):
@@ -36,23 +41,32 @@ class FaceScanner:
 
         if x2 <= x1 or y2 <= y1:
             return []
-        if self.face_cascade.empty():
-            return []
 
         roi = frame[y1:y2, x1:x2]
         if roi.size == 0:
             return []
 
-        gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        # MediaPipe expects RGB format
+        roi_rgb = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
+        results = self.face_detection.process(roi_rgb)
 
-        faces = self.face_cascade.detectMultiScale(
-            gray_roi,
-            scaleFactor=1.05,
-            minNeighbors=3,
-            minSize=(20, 20)
-        )
+        faces = []
+        if results.detections:
+            for detection in results.detections:
+                bboxC = detection.location_data.relative_bounding_box
+                box_h, box_w, _ = roi.shape
+                
+                # Convert relative coordinates to absolute pixels within ROI
+                fx = max(0, int(bboxC.xmin * box_w))
+                fy = max(0, int(bboxC.ymin * box_h))
+                fw = int(bboxC.width * box_w)
+                fh = int(bboxC.height * box_h)
+                
+                # Filter out unrealistically small false positives
+                if fw >= 20 and fh >= 20:
+                    faces.append((fx, fy, fw, fh))
 
-        # Robust CCTV fallback: if Haar misses due to camera angle/distance,
+        # Robust CCTV fallback: if AI misses due to camera angle/distance,
         # extract candidate biometric facial head region from upper anatomy
         if len(faces) == 0 and (y2 - y1) >= 45 and (x2 - x1) >= 20:
             box_w = x2 - x1
@@ -63,7 +77,7 @@ class FaceScanner:
             fy = max(0, int(box_h * 0.02))
             faces = [(fx, fy, min(fw, box_w - fx), min(fh, box_h - fy))]
 
-        results = []
+        final_results = []
         for (fx, fy, fw, fh) in faces:
             global_fx = x1 + fx
             global_fy = y1 + fy
@@ -72,13 +86,13 @@ class FaceScanner:
             if face_crop_raw.size == 0:
                 continue
 
-            # Clean, minimal face crop (only 10% padding) for professional biometric look
+            # Clear, full face crop (1.3x padding) for perfect biometric verification
             cx, cy = fx + fw // 2, fy + fh // 2
-            dim = int(max(fw, fh) * 1.1)  # Minimal padding, strictly face
+            dim = int(max(fw, fh) * 1.3)  # Balanced padding for full clear face
             rx1 = max(0, cx - dim // 2)
             rx2 = min(roi.shape[1], cx + dim // 2)
-            ry1 = max(0, cy - dim // 2)
-            ry2 = min(roi.shape[0], cy + dim // 2)
+            ry1 = max(0, cy - int(dim * 0.55))
+            ry2 = min(roi.shape[0], cy + int(dim * 0.55))
 
             clean_face_crop = roi[ry1:ry2, rx1:rx2]
             if clean_face_crop.size == 0:
@@ -104,14 +118,14 @@ class FaceScanner:
                     "color_hex": frs_res.color_hex
                 }
 
-            results.append({
+            final_results.append({
                 "box": (global_fx, global_fy, fw, fh),
                 "watchlist_match": match,
                 "frs_result": frs_res,
                 "face_crop": display_crop
             })
 
-        return results
+        return final_results
 
     def draw_biometric_scan(self, frame, face_data):
         """

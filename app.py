@@ -395,7 +395,7 @@ def main():
         loitering_high_risk_sec=config.get("loitering_threshold_high_risk_sec", 90),
         group_threshold=config.get("group_threshold_count", 3),
         crowd_threshold=config.get("crowd_threshold_count", 5),
-        speed_running_threshold=config.get("speed_threshold_running", 15.0),
+        speed_running_threshold=config.get("speed_threshold_running", 300.0),
     )
 
     night_enhancer = NightEnhancer(
@@ -801,6 +801,7 @@ def main():
                         is_in_zone=entity.is_in_zone,
                         zone_entry_time=entity.zone_entry_time,
                         zone_center=zone_center,
+                        fps=st.session_state.fps if st.session_state.fps > 0 else 30.0,
                     )
 
                     # Update entity with behavior tags

@@ -70,6 +70,7 @@ class BehaviorAnalyzer:
         is_in_zone: bool,
         zone_entry_time: Optional[float],
         zone_center: Optional[Tuple[int, int]] = None,
+        fps: float = 30.0,
     ) -> BehaviorReport:
         """
         Analyze behavior for a single tracked entity.
@@ -115,10 +116,11 @@ class BehaviorAnalyzer:
                     pb = position_history[i + 1]
                     d = math.sqrt((pb[0] - pa[0]) ** 2 + (pb[1] - pa[1]) ** 2)
                     speeds.append(d)
-                report.speed = np.mean(speeds)
+                # Multiply by FPS to get pixels per second instead of pixels per frame
+                report.speed = np.mean(speeds) * fps
 
-            # Categorize speed
-            if report.speed < 2.0:
+            # Categorize speed based on pixels per second
+            if report.speed < 30.0:
                 report.speed_category = "stationary"
             elif report.speed < self.speed_running_threshold:
                 report.speed_category = "walking"

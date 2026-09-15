@@ -1262,8 +1262,8 @@ def main():
                             incident_workflow_rendered = True
                         render_alert_panel(recent_events, max_display=10)
 
-                # Smooth frame rate pacing (avoids websocket browser overload)
-                time.sleep(0.03)
+                # Minimal sleep to yield to event loop, maximizing stream FPS for smoothness
+                time.sleep(0.001)
 
             cap.release()
 

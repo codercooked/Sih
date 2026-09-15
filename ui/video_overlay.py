@@ -163,34 +163,21 @@ def draw_zone(
     zone_name: str = "",
 ) -> np.ndarray:
     """
-    Draw restricted zone polygon on frame.
-    Sleek, transparent boundary with perimeter header badge that does NOT obstruct targets walking inside.
+    Draw restricted zone polygon boundary on frame.
+    Clean perimeter line only — zero text overlays for professional surveillance output.
     """
     annotated = frame.copy()
     pts = polygon.reshape((-1, 1, 2))
 
     if is_intruded:
-        # Subtle semi-transparent red fill (15% tint, completely transparent to subjects)
+        # Subtle semi-transparent red tint (10% opacity — doesn't obscure subjects)
         overlay = annotated.copy()
-        cv2.fillPoly(overlay, [polygon], (0, 0, 200))
-        cv2.addWeighted(overlay, 0.15, annotated, 0.85, 0, annotated)
+        cv2.fillPoly(overlay, [polygon], (0, 0, 180))
+        cv2.addWeighted(overlay, 0.10, annotated, 0.90, 0, annotated)
         cv2.polylines(annotated, [pts], True, (0, 0, 240), 2, cv2.LINE_AA)
     else:
         # Crisp emerald perimeter line
         cv2.polylines(annotated, [pts], True, (0, 200, 100), 1, cv2.LINE_AA)
-
-    # Perimeter header label placed on top boundary (NOT inside center of zone)
-    if zone_name:
-        top_y = int(np.min(polygon[:, 1]))
-        center_x = int(np.mean(polygon[:, 0]))
-        status_text = "🚨 INTRUSION BREACH" if is_intruded else "MONITORING"
-        badge_text = f"🛡️ {zone_name.upper()} • {status_text}"
-        badge_color = (0, 0, 240) if is_intruded else (0, 200, 100)
-
-        (tw, th), _ = cv2.getTextSize(badge_text, cv2.FONT_HERSHEY_SIMPLEX, 0.42, 1)
-        bx = max(10, center_x - tw // 2)
-        by = max(th + 10, top_y - 6)
-        _draw_pill_badge(annotated, badge_text, bx, by, border_color=badge_color, font_scale=0.42)
 
     return annotated
 
@@ -202,25 +189,10 @@ def draw_threat_badge(
     position: Tuple[int, int] = (15, 20),
 ) -> np.ndarray:
     """
-    Draw modern tactical HUD defense badge in corner of frame.
+    No-op: threat information is displayed in the side panel, not on the video feed.
+    Kept for API compatibility.
     """
-    annotated = frame.copy()
-    color = THREAT_COLORS.get(level, COLORS["threat_low"])
-
-    badge_text = f"● DEFENSE HUD • THREAT LEVEL: {score}/100 [{level.upper()}]"
-    _draw_pill_badge(
-        annotated,
-        badge_text,
-        position[0],
-        position[1],
-        border_color=color,
-        bg_color=(15, 23, 42),
-        text_color=(255, 255, 255),
-        font_scale=0.45,
-        padding=6
-    )
-
-    return annotated
+    return frame
 
 
 def draw_plate_text(
@@ -251,22 +223,13 @@ def draw_plate_text(
 
 
 def draw_fps(frame: np.ndarray, fps: float) -> np.ndarray:
-    """Draw tactical FPS and pipeline status pill on frame."""
-    annotated = frame.copy()
-    w = annotated.shape[1]
-    label = f"⚡ {fps:.1f} FPS • EDGE AI C2"
-    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.40, 1)
-    bx = w - tw - 16
-    _draw_pill_badge(annotated, label, max(10, bx), 20, border_color=(71, 85, 105), font_scale=0.40, padding=4)
-    return annotated
+    """No-op: FPS is displayed in the side panel status bar, not on the video feed."""
+    return frame
 
 
 def draw_night_mode_indicator(frame: np.ndarray) -> np.ndarray:
-    """Draw night mode CLAHE enhancement indicator pill."""
-    annotated = frame.copy()
-    label = "🌙 NIGHT-VISION (CLAHE ACTIVE)"
-    _draw_pill_badge(annotated, label, 15, 52, border_color=(0, 200, 255), font_scale=0.40, padding=4)
-    return annotated
+    """No-op: night mode status is displayed in the side panel, not on the video feed."""
+    return frame
 
 
 def draw_trajectory(
@@ -372,41 +335,15 @@ def draw_weapon_alert(
     weapon_detections: list,
 ) -> np.ndarray:
     """
-    Draw flashing weapon alert badges on detected weapons.
-    
-    Args:
-        frame: BGR image
-        weapon_detections: List of Detection objects for weapons
+    Draw clean weapon detection reticles without text labels.
+    Alert details are surfaced in the side panel and event log.
     """
     annotated = frame.copy()
-    
+
     for det in weapon_detections:
         x1, y1, x2, y2 = det.bbox
-        
-        # Bright red box
-        cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 0, 255), 3)
-        
-        # Warning label
-        label = f"WEAPON: {det.class_name.upper()}"
-        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-        cv2.rectangle(annotated, (x1, y1 - th - 12), (x1 + tw + 10, y1), (0, 0, 200), -1)
-        cv2.putText(
-            annotated, label, (x1 + 5, y1 - 5),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA,
-        )
-    
-    # Large warning banner if any weapons detected
-    if weapon_detections:
-        h, w = annotated.shape[:2]
-        banner = "⚠ WEAPON DETECTED — ARMED RESPONSE ACTIVATED ⚠"
-        (tw, th), _ = cv2.getTextSize(banner, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
-        bx = (w - tw) // 2
-        by = 50
-        cv2.rectangle(annotated, (bx - 10, by - th - 10), (bx + tw + 10, by + 10), (0, 0, 200), -1)
-        cv2.putText(
-            annotated, banner, (bx, by),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA,
-        )
-    
+        # Bright red tactical reticle around detected weapon
+        _draw_tactical_reticle(annotated, x1, y1, x2, y2, (0, 0, 255), corner_len=10, subtle_box=True)
+
     return annotated
 

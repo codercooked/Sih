@@ -714,7 +714,7 @@ def main():
                 # Initialize with our target high-FPS resolution (640x360)
                 # Match the resized processing frame to avoid OpenCV blend
                 # errors when the heatmap is composited over the live feed.
-                st.session_state.heatmap_accumulator = HeatmapAccumulator(512, 288)
+                st.session_state.heatmap_accumulator = HeatmapAccumulator(512, 288, decay_rate=0.96)
 
             # Streamlit widgets must be created once per script run. The video
             # loop can refresh visual placeholders repeatedly, but rendering the
@@ -1102,18 +1102,9 @@ def main():
                         if entity.class_name == "person" and not entity.is_in_zone and len(entity.position_history) >= 5:
                             predicted = predict_trajectory(entity.position_history, num_future_points=20)
                             if predicted:
-                                # Check if any predicted point falls inside the zone
                                 for pt in predicted:
                                     if zone.point_in_polygon(pt):
-                                        # PREDICTIVE ALERT — person will breach in the future
-                                        h_f, w_f = display_frame.shape[:2]
-                                        banner = f"PREDICTIVE ALERT: {entity_id} approaching zone!"
-                                        (tw, th), _ = cv2.getTextSize(banner, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-                                        bx = (w_f - tw) // 2
-                                        by = h_f - 40
-                                        cv2.rectangle(display_frame, (bx - 10, by - th - 10), (bx + tw + 10, by + 10), (0, 140, 255), -1)
-                                        cv2.putText(display_frame, banner, (bx, by), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
-
+                                        # Predictive alert via toast only (no text on video)
                                         if 'last_predictive_time' not in st.session_state:
                                             st.session_state.last_predictive_time = 0
                                         if time.time() - st.session_state.last_predictive_time > 8:
